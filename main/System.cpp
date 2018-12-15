@@ -11,7 +11,7 @@ void logHeap()
 }
 
 System::System(va_list args)
-    : _ledGpio(DigitalOut::create(2))
+    : _ledGpio(DigitalOut::create(13))
 {
 }
 
@@ -27,18 +27,20 @@ void System::preStart()
 Receive& System::createReceive()
 {
     return receiveBuilder()
-        .match(ReceiveTimeout, [this](Envelope& msg) { INFO(" No more messages since some time "); })
-        .match(TimerExpired,
-            [this](Envelope& msg) {
-	        uint16_t k;
-	        msg.scanf("i", &k);
-	        if(Uid(k) == _ledTimer) {
-	            static bool ledOn = false;
-	            _ledGpio.write(ledOn ? 1 : 0);
-	            ledOn = !ledOn;
-	        } else if(Uid(k) == _reportTimer) {
-	            logHeap();
-	        }
-            })
-        .build();
+    .match(ReceiveTimeout, [this](Envelope& msg) {
+        INFO(" No more messages since some time ");
+    })
+    .match(TimerExpired,
+    [this](Envelope& msg) {
+        uint16_t k;
+        msg.scanf("i", &k);
+        if(Uid(k) == _ledTimer) {
+            static bool ledOn = false;
+            _ledGpio.write(ledOn ? 1 : 0);
+            ledOn = !ledOn;
+        } else if(Uid(k) == _reportTimer) {
+            logHeap();
+        }
+    })
+    .build();
 }
