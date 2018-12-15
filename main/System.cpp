@@ -11,7 +11,7 @@ void logHeap()
 }
 
 System::System(va_list args)
-    : _ledGpio(DigitalOut::create(13))
+    : _ledGpio(DigitalOut::create(13)),_relaisGpio(DigitalOut::create(12))
 {
 }
 
@@ -20,8 +20,11 @@ System::~System() {}
 void System::preStart()
 {
     _ledGpio.init();
+    _relaisGpio.init();
     _reportTimer = timers().startPeriodicTimer("REPORT_TIMER", TimerExpired, 1000);
     _ledTimer = timers().startPeriodicTimer("LED_TIMER", TimerExpired, 100);
+    _relaisTimer = timers().startPeriodicTimer("RELAIS_TIMER", TimerExpired, 1000);
+
 }
 
 Receive& System::createReceive()
@@ -32,7 +35,7 @@ Receive& System::createReceive()
     })
     .match(TimerExpired,
     [this](Envelope& msg) {
-        uint16_t k;
+        uint32_t k;
         msg.scanf("i", &k);
         if(Uid(k) == _ledTimer) {
             static bool ledOn = false;
@@ -40,6 +43,11 @@ Receive& System::createReceive()
             ledOn = !ledOn;
         } else if(Uid(k) == _reportTimer) {
             logHeap();
+        } else if (Uid(k)==_relaisTimer) {
+            INFO("relais");
+            static bool relaisOn = false;
+            _relaisGpio.write(relaisOn ? 1 : 0);
+            relaisOn = !relaisOn;
         }
     })
     .build();
