@@ -8,8 +8,10 @@ class System : public Actor
 {
     Uid _ledTimer;
     Uid _reportTimer;
-    DigitalOut& _ledGpio;
-    DigitalOut& _relaisGpio;
+    DigitalOut& _led;
+    DigitalOut& _relais;
+    DigitalOut& _led1;
+    DigitalOut& _led2;
 
     uint32_t _interval = 100;
     Uid _relaisTimer;

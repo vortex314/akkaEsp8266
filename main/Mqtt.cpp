@@ -1,6 +1,7 @@
 #include "Mqtt.h"
 
 //#define MQTT_PORT 1883
+// .match(Exit, [](Envelope& msg) { exit(0); })
 #define MQTT_HOST "limero.ddns.net"
 #define MQTT_PORT 1883
 #define MQTT_USER ""
@@ -67,7 +68,7 @@ void Mqtt::preStart()
     context().setReceiveTimeout(5000);
     _timerAlive = timers().startPeriodicTimer("ALIVE_TIMER", TimerExpired, 5000);
     _timerYield = timers().startPeriodicTimer("YIELD_TIMER", TimerExpired, 10);
-    xTaskCreate(&mqttYieldTask, "mqttYieldTask", 500, NULL, tskIDLE_PRIORITY + 1, NULL);
+    //   xTaskCreate(&mqttYieldTask, "mqttYieldTask", 500, NULL, tskIDLE_PRIORITY + 1, NULL);
 }
 
 Receive& Mqtt::createReceive()
@@ -116,8 +117,8 @@ Receive& Mqtt::createReceive()
 	        msg.scanf("i", &k);
 	        if(Uid(k) == _timerYield) {
 	            if(_mqttConnected) {
-		        //	        int ret = mqtt_yield(&_client, 10);
-		        //	        if(ret == MQTT_DISCONNECTED) { _mqttConnected = false; }
+		        int ret = mqtt_yield(&_client, 10);
+		        if(ret == MQTT_DISCONNECTED) { _mqttConnected = false; }
 	            } else if(_wifiConnected) {
 		        mqttConnect();
 	            }
