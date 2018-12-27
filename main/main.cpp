@@ -17,6 +17,7 @@
 
 #include <Akka.cpp>
 #include <Echo.cpp>
+#include <Bridge.cpp>
 #include <Mqtt.h>
 #include <Sender.cpp>
 #include <System.h>
@@ -28,57 +29,55 @@
  * Parameters   : none
  * Returns      : none
  *******************************************************************************/
-/*   ActorRef mqttBridge = actorSystem.actorOf<MqttBridge>(
-         Props::create()
-             .withMailbox(remoteMailbox)
-             .withDispatcher(defaultDispatcher),
-         "mqttBridge", "tcp://test.mosquitto.org:1883");*/
+
 Log logger(256);
 ActorMsgBus eb;
 
-void akkaMainTask(void* pvParameter)
-{
-    uart_set_baud(0, 115200);
-    Sys::init();
-    //   while(true) { printf("SDK version:%s\n", sdk_system_get_sdk_version()); }
-    INFO("Starting Akka on %s heap : %d ", Sys::getProcessor(), Sys::getFreeHeap());
-    INFO("%s", Sys::getBoard());
-    Sys::init();
-    MessageDispatcher& defaultDispatcher = *new MessageDispatcher();
-    Mailbox defaultMailbox = *new Mailbox("default", 2048, 256);
-    Mailbox remoteMailbox = *new Mailbox("remote", 2048, 256);
-    ActorSystem actorSystem(Sys::hostname(), defaultDispatcher, defaultMailbox);
+extern void XdrTester(uint32_t);
 
-    ActorRef sender = actorSystem.actorOf<Sender>("Sender");
-    ActorRef system = actorSystem.actorOf<System>("System");
-    ActorRef wifi = actorSystem.actorOf<Wifi>("Wifi");
-    ActorRef mqtt = actorSystem.actorOf<Mqtt>("Mqtt");
+static void  mqtt_task(void *pvParameters) {
+	MessageDispatcher* dispatcher = (MessageDispatcher*)pvParameters;
 
-    defaultDispatcher.attach(defaultMailbox);
-    defaultDispatcher.attach(remoteMailbox);
-    defaultDispatcher.unhandled(mqtt.cell());
+	dispatcher->execute();
 
-    eb.subscribe(mqtt, EnvelopeClassifier(wifi, Wifi::Disconnected));
-    eb.subscribe(mqtt, EnvelopeClassifier(wifi, Wifi::Connected));
-//   eb.subscribe(system, EnvelopeClassifier(mqtt, Mqtt::Connected));
-//    eb.subscribe(system, EnvelopeClassifier(mqtt, Mqtt::Disconnected));
-
-    while(true) {
-        defaultDispatcher.execute();
-        if(defaultDispatcher.nextWakeup() > Sys::millis()) {
-            uint32_t delay = (defaultDispatcher.nextWakeup() - Sys::millis());
-            if(delay > 10) {
-                if(delay > 10000) {
-                    WARN(" big delay %u", delay);
-                } else {
-                    vTaskDelay(delay / 10); // is in 10 msec multiples
-                }
-            }
-        }
-    }
 }
-extern "C" void user_init(void)
-{
-    uart_set_baud(0, 115200);
-    xTaskCreate(&akkaMainTask, "akkaMainTask", 2000, NULL, tskIDLE_PRIORITY + 1, NULL);
+
+void akkaMainTask(void* pvParameter) {
+	uart_set_baud(0, 115200);
+	Sys::delay(5000);
+	Sys::init();
+	INFO("Starting Akka on %s heap : %d ", Sys::getProcessor(), Sys::getFreeHeap());
+	INFO("%s", Sys::getBoard());
+	Sys::init();
+
+	Mailbox defaultMailbox("default", 2048);
+	Mailbox mqttMailbox("mqtt", 2048);
+
+	MessageDispatcher defaultDispatcher;
+	MessageDispatcher mqttDispatcher;
+
+	ActorSystem actorSystem(Sys::hostname(), defaultDispatcher, defaultMailbox);
+
+	ActorRef sender = actorSystem.actorOf<Sender>("Sender");
+	ActorRef wifi = actorSystem.actorOf<Wifi>("Wifi");
+
+	ActorRef mqtt = actorSystem.actorOf<Mqtt>(Props::create()
+	                .withDispatcher(mqttDispatcher)
+	                .withMailbox(mqttMailbox)
+	                ,"Mqtt",wifi);
+
+	ActorRef bridge = actorSystem.actorOf<Bridge>("Bridge",mqtt);
+	ActorRef system = actorSystem.actorOf<System>("System",mqtt);
+
+	defaultDispatcher.attach(defaultMailbox);
+	defaultDispatcher.unhandled(bridge.cell());
+	mqttDispatcher.attach(mqttMailbox);
+
+	xTaskCreate(&mqtt_task, "mqtt_task", 1024, &mqttDispatcher, tskIDLE_PRIORITY + 1, NULL);
+	defaultDispatcher.execute();
+
+}
+extern "C" void user_init(void) {
+	uart_set_baud(0, 115200);
+	xTaskCreate(&akkaMainTask, "akkaMainTask", 2000, NULL, tskIDLE_PRIORITY + 2, NULL);
 }
