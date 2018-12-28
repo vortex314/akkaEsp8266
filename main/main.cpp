@@ -22,6 +22,7 @@
 #include <Sender.cpp>
 #include <System.h>
 #include <Wifi.h>
+#include <RtosQueue.h>
 
 /******************************************************************************
  * FunctionName : app_main
@@ -46,12 +47,12 @@ void akkaMainTask(void* pvParameter) {
 	uart_set_baud(0, 115200);
 	Sys::delay(5000);
 	Sys::init();
-	INFO("Starting Akka on %s heap : %d ", Sys::getProcessor(), Sys::getFreeHeap());
+	printf("Starting Akka on %s heap : %d ", Sys::getProcessor(), Sys::getFreeHeap());
 	INFO("%s", Sys::getBoard());
 	Sys::init();
 
-	Mailbox defaultMailbox("default", 2048);
-	Mailbox mqttMailbox("mqtt", 2048);
+	Mailbox defaultMailbox("default", 100);
+	Mailbox mqttMailbox("mqtt", 100);
 
 	MessageDispatcher defaultDispatcher;
 	MessageDispatcher mqttDispatcher;

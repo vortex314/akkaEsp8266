@@ -77,7 +77,7 @@ class Mqtt : public Actor {
 
 		void preStart();
 		Receive& createReceive();
-		static bool payloadToJsonArray(JsonArray& array, Cbor& payload);
+//		static bool payloadToJsonArray(JsonArray& array, Cbor& payload);
 		static void mqttYieldTask(void* pvParameter);
 
 	private:

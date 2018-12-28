@@ -69,7 +69,7 @@ Receive& System::createReceive() {
 		m("upTime",Sys::millis());
 		m("ram",80*1024);
 		m("heap",xPortGetFreeHeapSize());
-		sender().tell(self(),m);
+		sender().tell(m,self());
 	})
 	.build();
 }
