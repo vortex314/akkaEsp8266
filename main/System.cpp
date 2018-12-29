@@ -24,17 +24,17 @@ void System::preStart() {
 	_led1.init();
 	_led2.init();
 	_relais.init();
-	_reportTimer = timers().startPeriodicTimer("REPORT_TIMER", TimerExpired, 5000);
-	_ledTimer = timers().startPeriodicTimer("LED_TIMER", TimerExpired, 100);
-	_relaisTimer = timers().startPeriodicTimer("RELAIS_TIMER", TimerExpired, 100000);
+	_reportTimer = timers().startPeriodicTimer("REPORT_TIMER", TimerExpired(), 5000);
+	_ledTimer = timers().startPeriodicTimer("LED_TIMER", TimerExpired(), 100);
+	_relaisTimer = timers().startPeriodicTimer("RELAIS_TIMER", TimerExpired(), 100000);
 	eb.subscribe(self(), MessageClassifier(_mqtt,Mqtt::Disconnected));
 	eb.subscribe(self(), MessageClassifier(_mqtt,Mqtt::Connected));
 }
 
 Receive& System::createReceive() {
 	return receiveBuilder()
-	.match(ReceiveTimeout, [this](Envelope& msg) { INFO(" No more messages since some time "); })
-	.match(TimerExpired,
+	.match(ReceiveTimeout(), [this](Envelope& msg) { INFO(" No more messages since some time "); })
+	.match(TimerExpired(),
 	[this](Envelope& msg) {
 		uint32_t k;
 		msg.get(AKKA_TIMER, k);
@@ -47,6 +47,7 @@ Receive& System::createReceive() {
 			ledOn = !ledOn;
 		} else if(Uid(k) == _reportTimer) {
 			logHeap();
+			_mqtt.tell(Msg(Mqtt::Publish)("topic","src/tester/publish")("message","data"),self());
 		} else if(Uid(k) == _relaisTimer) {
 			INFO("relais");
 			static bool relaisOn = false;
@@ -59,11 +60,11 @@ Receive& System::createReceive() {
 	[this](Envelope& msg) { INFO(" MQTT Connected "); timers().find(_ledTimer)->interval(500); })
 	.match(
 	    Mqtt::Disconnected,
-	[this](Envelope& msg) { INFO(" MQTT Connected "); timers().find(_ledTimer)->interval(100); })
-	.match(Properties,[this](Envelope& msg) {
+	[this](Envelope& msg) { INFO(" MQTT Disconnected "); timers().find(_ledTimer)->interval(100); })
+	.match(Properties(),[this](Envelope& msg) {
 		INFO(" Properties requested ");
 
-		Msg m(PropertiesReply);
+		Msg m(PropertiesReply());
 		m("cpu","ESP8266");
 		m("procs",1);
 		m("upTime",Sys::millis());

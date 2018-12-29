@@ -17,8 +17,8 @@ Wifi::Wifi(va_list args) {
 #include <lwip/netif.h>
 
 void Wifi::preStart() {
-	context().setReceiveTimeout(3000);
-	timers().startPeriodicTimer("INTERVAL", TimerExpired, 1000);
+//	context().setReceiveTimeout(3000);
+	timers().startPeriodicTimer("INTERVAL", TimerExpired(), 2000);
 	ZERO(_config);
 	strcpy((char*)_config.password, _pswd.c_str());
 	if(sdk_wifi_get_opmode() == SOFTAP_MODE) { INFO("ap mode can't scan !!!\r\n"); }
@@ -26,17 +26,13 @@ void Wifi::preStart() {
 	_state = START_SCAN;
 
 	SCAN = &receiveBuilder()
-	       .match(TimerExpired,
+	       .match(TimerExpired(),
 	[this](Envelope&) {
 		if(_state == START_SCAN) {
 			_foundAP=false;
-			INFO("Start scanning.. %s ", Sys::hostname());
-			int erc;
-			erc = sdk_wifi_set_opmode(STATION_MODE);
-			INFO("sdk_wifi_set_opmode(STATION_MODE) = %d", erc);
-			erc = sdk_wifi_station_scan(NULL, scan_done_cb);
-			INFO("sdk_wifi_station_scan(NULL, scan_done_cb) = %d", erc);
 			_state = SCANNING;
+			_retries=10;
+			startScan();
 		} else if(_state == SCANNING) {
 			if(_foundAP) {
 				INFO(" Scan end, ssid : %s ",_ssid.c_str());
@@ -46,9 +42,11 @@ void Wifi::preStart() {
 				context().become(*DISCONNECTED, true);
 				return;
 			} else {
-				INFO("Wait for scan end...");
-
-//				sdk_wifi_station_scan(NULL, scan_done_cb);
+				INFO("Wait for scan end... %d ",_retries--);
+				if ( _retries==0) {
+					_state=START_SCAN;
+					INFO(" restarting scan ");
+				}
 			}
 		} else {
 			WARN(" unknown state %d",_state);
@@ -59,7 +57,7 @@ void Wifi::preStart() {
 	// https://github.com/SuperHouse/esp-open-rtos/issues/333
 
 	DISCONNECTED = &receiveBuilder()
-	               .match(TimerExpired,
+	               .match(TimerExpired(),
 	[this](Envelope&) {
 		if ( _state==START_CONNECT ) {
 			sdk_wifi_station_disconnect();
@@ -80,19 +78,24 @@ void Wifi::preStart() {
 				INFO("WiFi: connection failed");
 			} else if ( _status == STATION_GOT_IP ) {
 				becomeConnected();
+			} else if ( _status == STATION_IDLE ) {
+				INFO("WiFi: STATION_IDLE");
+			} else if ( _status == STATION_CONNECTING ) {
+				INFO("WiFi: STATION_CONNECTING");
 			} else {
 				WARN(" unknown wifi state: %d",_status);
 			}
 			--_retries;
 			if(_retries == 0) {
 				_foundAP = false;
+				_state=START_SCAN;
 				context().become(*SCAN);
 			}
 		}
 	})
 	.build();
 	CONNECTED = &receiveBuilder()
-	            .match(TimerExpired,
+	            .match(TimerExpired(),
 	[this](Envelope&) {
 		if(!isConnected()) {
 			INFO("disconnected...");
@@ -158,6 +161,16 @@ void Wifi::scan_done_cb(void* arg, sdk_scan_status_t status) {
 		INFO(" selected AP : %s ", _wifi->_ssid.c_str());
 		return;
 	}
+}
+
+void Wifi::startScan() {
+	INFO("Start scanning.. %s ", Sys::hostname());
+	int erc;
+	erc = sdk_wifi_set_opmode(STATION_MODE);
+	INFO("sdk_wifi_set_opmode(STATION_MODE) = %d", erc);
+	erc = sdk_wifi_station_scan(NULL, scan_done_cb);
+	INFO("sdk_wifi_station_scan(NULL, scan_done_cb) = %d", erc);
+	eb.publish(Msg(Wifi::Disconnected).src(self().id()));
 }
 
 bool Wifi::isConnected() {

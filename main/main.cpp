@@ -36,10 +36,28 @@ ActorMsgBus eb;
 
 extern void XdrTester(uint32_t);
 
+
+extern void* pxCurrentTCB;
+
+void* tcb=0;
+void setTask() {
+	tcb=pxCurrentTCB;
+	INFO("tcb = %X",tcb);
+
+}
+bool isTask() {
+	return tcb==pxCurrentTCB;
+}
+
+
 static void  mqtt_task(void *pvParameters) {
+	setTask();
+	INFO(" MQTT task started");
 	MessageDispatcher* dispatcher = (MessageDispatcher*)pvParameters;
 
 	dispatcher->execute();
+	INFO(" MQTT task ended");
+
 
 }
 
@@ -68,13 +86,16 @@ void akkaMainTask(void* pvParameter) {
 	                ,"Mqtt",wifi);
 
 	ActorRef bridge = actorSystem.actorOf<Bridge>("Bridge",mqtt);
-	ActorRef system = actorSystem.actorOf<System>("System",mqtt);
+	ActorRef system = actorSystem.actorOf<System>(Props::create()
+	                  .withDispatcher(mqttDispatcher)
+	                  .withMailbox(mqttMailbox)
+	                  ,"System",mqtt);
 
 	defaultDispatcher.attach(defaultMailbox);
 	defaultDispatcher.unhandled(bridge.cell());
 	mqttDispatcher.attach(mqttMailbox);
 
-	xTaskCreate(&mqtt_task, "mqtt_task", 1024, &mqttDispatcher, tskIDLE_PRIORITY + 1, NULL);
+	xTaskCreate(&mqtt_task, "mqtt_task", 1024, &mqttDispatcher, tskIDLE_PRIORITY + 2, NULL);
 	defaultDispatcher.execute();
 
 }

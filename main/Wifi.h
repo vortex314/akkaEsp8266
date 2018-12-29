@@ -37,6 +37,7 @@ class Wifi : public Actor {
 		Receive& createReceive();
 		static void scan_done_cb(void* arg, sdk_scan_status_t status);
 		void scan();
+		void startScan();
 		bool isConnected();
 		void becomeConnected();
 };
