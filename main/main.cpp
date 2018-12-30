@@ -20,6 +20,7 @@
 #include <Bridge.cpp>
 #include <Mqtt.h>
 #include <Sender.cpp>
+#include <Publisher.cpp>
 #include <System.h>
 #include <Wifi.h>
 #include <RtosQueue.h>
@@ -77,19 +78,20 @@ void akkaMainTask(void* pvParameter) {
 
 	ActorSystem actorSystem(Sys::hostname(), defaultDispatcher, defaultMailbox);
 
-	ActorRef sender = actorSystem.actorOf<Sender>("Sender");
-	ActorRef wifi = actorSystem.actorOf<Wifi>("Wifi");
+//	ActorRef sender = actorSystem.actorOf<Sender>("sender");
+	ActorRef wifi = actorSystem.actorOf<Wifi>("wifi");
 
 	ActorRef mqtt = actorSystem.actorOf<Mqtt>(Props::create()
 	                .withDispatcher(mqttDispatcher)
 	                .withMailbox(mqttMailbox)
-	                ,"Mqtt",wifi);
+	                ,"mqtt",wifi);
 
-	ActorRef bridge = actorSystem.actorOf<Bridge>("Bridge",mqtt);
+	ActorRef publisher = actorSystem.actorOf<Publisher>("publisher",mqtt);
+	ActorRef bridge = actorSystem.actorOf<Bridge>("bridge",mqtt);
 	ActorRef system = actorSystem.actorOf<System>(Props::create()
 	                  .withDispatcher(mqttDispatcher)
 	                  .withMailbox(mqttMailbox)
-	                  ,"System",mqtt);
+	                  ,"system",mqtt);
 
 	defaultDispatcher.attach(defaultMailbox);
 	defaultDispatcher.unhandled(bridge.cell());

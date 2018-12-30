@@ -48,6 +48,7 @@ void Mqtt::preStart() {
 	_topicsForDevice += "/#";
 
 	_mqttConnected = false;
+	_wifiConnected = false;
 
 	_timerAlive = timers().startPeriodicTimer("ALIVE_TIMER", TimerExpired(), 1000);
 	_timerYield = timers().startPeriodicTimer("YIELD_TIMER", TimerExpired(), 500);
@@ -93,9 +94,6 @@ Receive& Mqtt::createReceive() {
 			if ( _mqttConnected) {
 				std::string message="true";
 				mqttPublish(_topicAlive, message);
-			} else {
-				mqttDisconnect();
-				mqttConnect();
 			}
 		} else {
 			WARN(" unknown timer ,timerId : %d ",k);
@@ -106,11 +104,13 @@ Receive& Mqtt::createReceive() {
 	.match(Wifi::Connected,
 	[this](Envelope& msg) {
 		INFO(" WIFI CONNECTED !!");
+		_wifiConnected=true;
 		mqttConnect();
 	})
 
 	.match(Wifi::Disconnected,
 	[this](Envelope& msg) {
+		_wifiConnected = false;
 		INFO(" WIFI DISCONNECTED !!");
 		mqttDisconnect();
 	})
@@ -149,14 +149,6 @@ void Mqtt::topic_received_cb(mqtt_message_data_t* md) {
 		WARN(" sorry ! MQTT reception busy ");
 	}
 }
-
-
-
-static bool alive = true;
-
-
-
-
 
 void Mqtt::mqttPublish(std::string& topic, std::string& msg) {
 	if(_mqttConnected) {
@@ -210,17 +202,13 @@ bool Mqtt::mqttConnect() {
 	INFO("Send MQTT connect ... ");
 	_ret = mqtt_connect(&_client, &_data);
 	if(_ret) {
-		Msg msg(Disconnected);
-		msg(UID_SRC,_mqtt->self().id());
-		eb.publish(msg);
+		eb.publish(Msg(Mqtt::Disconnected)(UID_SRC,self().id()));
 		INFO("error: %d", _ret);
 		mqtt_network_disconnect(&_network);
 		return false;
 	};
 	mqttSubscribe(_topicsForDevice.c_str());
-	Msg msg(Connected);
-	msg(UID_SRC,_mqtt->self().id());
-	eb.publish(msg);
+	eb.publish(Msg(Mqtt::Connected)(UID_SRC,self().id()));
 	_mqttConnected=true;
 	return true;
 }
@@ -230,5 +218,4 @@ void Mqtt::mqttDisconnect() {
 	mqtt_network_disconnect(&_network);
 	_mqttConnected=false;
 	eb.publish(Msg(Disconnected).src(self()));
-	mqttConnect();
 }

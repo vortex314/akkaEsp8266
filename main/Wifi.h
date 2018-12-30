@@ -5,6 +5,7 @@
 #include <FreeRTOS.h>
 #include <espressif/esp_sta.h>
 #include <espressif/esp_wifi.h>
+#include <espressif/esp_system.h>
 #include <task.h>
 
 #include <Akka.h>

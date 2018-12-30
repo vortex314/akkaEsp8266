@@ -109,6 +109,18 @@ void Wifi::preStart() {
 			//INFO("connected...");
 		}
 	})
+	.match(Properties(),[this](Envelope& msg) {
+		INFO(" Properties requested ");
+		uint8_t mac[13];
+		sdk_wifi_get_macaddr(STATION_IF, (uint8_t *) mac);
+		std::string macAddress;
+		string_format(macAddress,"%2X:%2X:%2X:%2X:%2X:%2X",mac[0],mac[1],mac[2],mac[3],mac[4],mac[5]);
+		sender().tell(Msg(PropertiesReply())
+		              ("ip",_ipAddress)
+		              ("mac",macAddress)
+		              ("ssid",_ssid)
+		              ,self());
+	})
 	.build();
 	context().become(*SCAN);
 }
