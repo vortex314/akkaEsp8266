@@ -13,17 +13,12 @@ Wifi::Wifi(va_list args) {
 	_state = START_SCAN;
 };
 
-#include <lwip/api.h>
-#include <lwip/netif.h>
-
 void Wifi::preStart() {
-//	context().setReceiveTimeout(3000);
 	timers().startPeriodicTimer("INTERVAL", TimerExpired(), 2000);
 	ZERO(_config);
 	strcpy((char*)_config.password, _pswd.c_str());
 	if(sdk_wifi_get_opmode() == SOFTAP_MODE) { INFO("ap mode can't scan !!!\r\n"); }
 	_foundAP = false;
-	_state = START_SCAN;
 
 	SCAN = &receiveBuilder()
 	       .match(TimerExpired(),
@@ -94,6 +89,7 @@ void Wifi::preStart() {
 		}
 	})
 	.build();
+
 	CONNECTED = &receiveBuilder()
 	            .match(TimerExpired(),
 	[this](Envelope&) {
@@ -104,17 +100,17 @@ void Wifi::preStart() {
 			eb.publish(m);
 			sdk_wifi_station_disconnect();
 			_foundAP = false;
+			_state=START_SCAN;
 			context().become(*SCAN);
 		} else {
 			//INFO("connected...");
 		}
 	})
 	.match(Properties(),[this](Envelope& msg) {
-		INFO(" Properties requested ");
 		uint8_t mac[13];
 		sdk_wifi_get_macaddr(STATION_IF, (uint8_t *) mac);
 		std::string macAddress;
-		string_format(macAddress,"%2X:%2X:%2X:%2X:%2X:%2X",mac[0],mac[1],mac[2],mac[3],mac[4],mac[5]);
+		string_format(macAddress,"%02X:%02X:%02X:%02X:%02X:%02X",mac[0],mac[1],mac[2],mac[3],mac[4],mac[5]);
 		sender().tell(Msg(PropertiesReply())
 		              ("ip",_ipAddress)
 		              ("mac",macAddress)
@@ -122,6 +118,8 @@ void Wifi::preStart() {
 		              ,self());
 	})
 	.build();
+
+	_state = START_SCAN;
 	context().become(*SCAN);
 }
 

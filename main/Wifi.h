@@ -6,6 +6,8 @@
 #include <espressif/esp_sta.h>
 #include <espressif/esp_wifi.h>
 #include <espressif/esp_system.h>
+#include <lwip/api.h>
+#include <lwip/netif.h>
 #include <task.h>
 
 #include <Akka.h>

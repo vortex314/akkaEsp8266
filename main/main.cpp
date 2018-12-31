@@ -21,6 +21,7 @@
 #include <Mqtt.h>
 #include <Sender.cpp>
 #include <Publisher.cpp>
+//#include <ConfigActor.cpp>
 #include <System.h>
 #include <Wifi.h>
 #include <RtosQueue.h>
@@ -68,6 +69,7 @@ void akkaMainTask(void* pvParameter) {
 	Sys::init();
 	printf("Starting Akka on %s heap : %d ", Sys::getProcessor(), Sys::getFreeHeap());
 	INFO("%s", Sys::getBoard());
+	INFO(" ActorCell : %d , ActorRef: %d , Uid : %d Mailbox: %d ",sizeof(ActorCell),sizeof(ActorRef),sizeof(Uid),sizeof(Mailbox));
 	Sys::init();
 
 	Mailbox defaultMailbox("default", 100);
@@ -88,10 +90,8 @@ void akkaMainTask(void* pvParameter) {
 
 	ActorRef publisher = actorSystem.actorOf<Publisher>("publisher",mqtt);
 	ActorRef bridge = actorSystem.actorOf<Bridge>("bridge",mqtt);
-	ActorRef system = actorSystem.actorOf<System>(Props::create()
-	                  .withDispatcher(mqttDispatcher)
-	                  .withMailbox(mqttMailbox)
-	                  ,"system",mqtt);
+	ActorRef system = actorSystem.actorOf<System>("system",mqtt);
+	//ActorRef config = actorSystem.actorOf<ConfigActor>("config");
 
 	defaultDispatcher.attach(defaultMailbox);
 	defaultDispatcher.unhandled(bridge.cell());

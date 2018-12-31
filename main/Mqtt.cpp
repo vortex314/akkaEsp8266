@@ -30,7 +30,7 @@ MsgClass Mqtt::Subscribe("Mqtt/Subscribe");
 
 Mqtt::Mqtt(va_list args) {
 	_wifi = va_arg(args,ActorRef);
-	_address = va_arg(args, const char*);
+//	_address = va_arg(args, const char*);
 	_wifiConnected = false;
 	_mqttConnected = false;
 	Uid::hash("topic");

@@ -40,9 +40,9 @@ Receive& System::createReceive() {
 		uint32_t k;
 		msg.get(AKKA_TIMER, k);
 		if(Uid(k) == _ledTimer) {
-/*			static uint64_t lastTime;
-			INFO(" delta Led : %u ",Sys::millis()-lastTime);
-			lastTime=Sys::millis();*/
+			/*			static uint64_t lastTime;
+						INFO(" delta Led : %u ",Sys::millis()-lastTime);
+						lastTime=Sys::millis();*/
 			static bool ledOn = false;
 			_led.write(ledOn ? 1 : 0);
 			_led1.write(ledOn ? 1 : 0);
@@ -51,7 +51,6 @@ Receive& System::createReceive() {
 			ledOn = !ledOn;
 		} else if(Uid(k) == _reportTimer) {
 			logHeap();
-			_mqtt.tell(Msg(Mqtt::Publish)("topic","src/tester/publish")("message","data"),self());
 		} else if(Uid(k) == _relaisTimer) {
 			INFO("relais");
 			static bool relaisOn = false;
@@ -69,15 +68,13 @@ Receive& System::createReceive() {
 	[this](Envelope& msg) { INFO(" MQTT Disconnected "); timers().find(_ledTimer)->interval(100); })
 
 	.match(Properties(),[this](Envelope& msg) {
-		INFO(" Properties requested ");
-
-		Msg m(PropertiesReply());
-		m("cpu","ESP8266");
-		m("procs",1);
-		m("upTime",Sys::millis());
-		m("ram",80*1024);
-		m("heap",xPortGetFreeHeapSize());
-		sender().tell(m,self());
+		sender().tell(msg.reply()
+		              ("cpu","ESP8266")
+		              ("procs",1)
+		              ("upTime",Sys::millis())
+		              ("ram",80*1024)
+		              ("heap",xPortGetFreeHeapSize())
+		              ,self());
 	})
 	.build();
 }
