@@ -24,9 +24,9 @@ void System::preStart() {
 	_led1.init();
 	_led2.init();
 	_relais.init();
-	_reportTimer = timers().startPeriodicTimer("REPORT_TIMER", TimerExpired(), 5000);
-	_ledTimer = timers().startPeriodicTimer("LED_TIMER", TimerExpired(), 100);
-	_relaisTimer = timers().startPeriodicTimer("RELAIS_TIMER", TimerExpired(), 100000);
+	_reportTimer = timers().startPeriodicTimer("REPORT_TIMER", Msg("reportTimer"), 5000);
+	_ledTimer = timers().startPeriodicTimer("LED_TIMER", Msg("ledTimer"), 100);
+	_relaisTimer = timers().startPeriodicTimer("RELAIS_TIMER", Msg("relaisTimer"), 100000);
 	eb.subscribe(self(), MessageClassifier(_mqtt,Mqtt::Disconnected));
 	eb.subscribe(self(), MessageClassifier(_mqtt,Mqtt::Connected));
 }
@@ -35,45 +35,34 @@ Receive& System::createReceive() {
 	return receiveBuilder()
 	.match(ReceiveTimeout(), [this](Envelope& msg) { INFO(" No more messages since some time "); })
 
-	.match(TimerExpired(),
-	[this](Envelope& msg) {
-		uint32_t k;
-		msg.get(AKKA_TIMER, k);
-		if(Uid(k) == _ledTimer) {
-			/*			static uint64_t lastTime;
-						INFO(" delta Led : %u ",Sys::millis()-lastTime);
-						lastTime=Sys::millis();*/
-			static bool ledOn = false;
-			_led.write(ledOn ? 1 : 0);
-			_led1.write(ledOn ? 1 : 0);
-			_led2.write(ledOn ? 1 : 0);
-
-			ledOn = !ledOn;
-		} else if(Uid(k) == _reportTimer) {
-			logHeap();
-		} else if(Uid(k) == _relaisTimer) {
-			INFO("relais");
-			static bool relaisOn = false;
-			_relais.write(relaisOn ? 1 : 0);
-			relaisOn = !relaisOn;
-		}
+	.match(MsgClass("ledTimer"),[this](Envelope& msg) {
+		static bool ledOn = false;
+		_led.write(ledOn ? 1 : 0);
+		_led1.write(ledOn ? 1 : 0);
+		_led2.write(ledOn ? 1 : 0);
+		ledOn = !ledOn;
+	})
+	.match(MsgClass("reportTimer"),[this](Envelope& msg) {	logHeap();})
+	.match(MsgClass("relaisTimer"),[this](Envelope& msg) {
+		INFO("relais");
+		static bool relaisOn = false;
+		_relais.write(relaisOn ? 1 : 0);
+		relaisOn = !relaisOn;
 	})
 
-	.match(
-	    Mqtt::Connected,
-	[this](Envelope& msg) { INFO(" MQTT Connected "); timers().find(_ledTimer)->interval(500); })
+	.match(Mqtt::Connected,	[this](Envelope& msg) { INFO(" MQTT Connected "); timers().find(_ledTimer)->interval(500); })
 
-	.match(
-	    Mqtt::Disconnected,
-	[this](Envelope& msg) { INFO(" MQTT Disconnected "); timers().find(_ledTimer)->interval(100); })
+	.match( Mqtt::Disconnected,	[this](Envelope& msg) { INFO(" MQTT Disconnected "); timers().find(_ledTimer)->interval(100); })
 
 	.match(Properties(),[this](Envelope& msg) {
 		sender().tell(msg.reply()
+		              ("build",__DATE__ " " __TIME__)
 		              ("cpu","ESP8266")
 		              ("procs",1)
 		              ("upTime",Sys::millis())
 		              ("ram",80*1024)
 		              ("heap",xPortGetFreeHeapSize())
+		              ("stack",(uint32_t)uxTaskGetStackHighWaterMark(NULL))
 		              ,self());
 	})
 	.build();

@@ -13,9 +13,11 @@ SERIAL_PORT ?= /dev/tty$(TTY)
 ESPPORT = $(SERIAL_PORT)
 SERIAL_BAUD = 115200
 LIBS= m hal gcc stdc++
-EXTRA_CFLAGS=-DEXTRAS_MDNS_RESPONDER -DLWIP_MDNS_RESPONDER=1 -DLWIP_NUM_NETIF_CLIENT_DATA=1 -DLWIP_NETIF_EXT_STATUS_CALLBACK=1 -DPSWD=${PSWD} -DSSID=${SSID}
+EXTRA_CFLAGS=-DEXTRAS_MDNS_RESPONDER -DLWIP_MDNS_RESPONDER=1 -DLWIP_NUM_NETIF_CLIENT_DATA=1 
+EXTRA_CFLAGS += -DLWIP_NETIF_EXT_STATUS_CALLBACK=1 -DPSWD=${PSWD} -DSSID=${SSID}
 EXTRA_LDFLAGS= -Wl,--gc-sections
-EXTRA_CXXFLAGS += -O3 -ffunction-sections -fdata-sections  -fno-threadsafe-statics -std=c++11 -fno-rtti -lstdc++ -fno-exceptions -DPSWD=${PSWD} -DSSID=${SSID} -DESP_OPEN_RTOS
+EXTRA_CXXFLAGS += -g -ffunction-sections -fdata-sections  -fno-threadsafe-statics -std=c++11 
+EXTRA_CXXFLAGS += -fno-rtti -lstdc++ -fno-exceptions -DPSWD=${PSWD} -DSSID=${SSID} -DESP_OPEN_RTOS
 
 # FLAVOR=sdklike
 # -Wl,--gc-sections

@@ -6,11 +6,11 @@
     </Plugin>
   </Plugins>
   <VirtualDirectory Name="main">
+    <File Name="main/Sys.cpp.old"/>
     <File Name="main/Wifi.h"/>
     <File Name="main/Wifi.cpp"/>
     <File Name="main/System.h"/>
     <File Name="main/System.cpp"/>
-    <File Name="main/Sys.cpp"/>
     <File Name="main/Mqtt.h"/>
     <File Name="main/Mqtt.cpp"/>
     <File Name="main/main.cpp"/>

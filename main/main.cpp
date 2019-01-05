@@ -38,6 +38,15 @@ ActorMsgBus eb;
 
 extern void XdrTester(uint32_t);
 
+void vAssertCalled( unsigned long ulLine, const char * const pcFileName ) {
+	printf("Assert called on : %s:%lu",pcFileName,ulLine);
+}
+
+extern "C" void vApplicationMallocFailedHook() {
+	WARN(" malloc failed ! ");
+	exit(-1);
+}
+
 
 extern void* pxCurrentTCB;
 
@@ -80,7 +89,7 @@ void akkaMainTask(void* pvParameter) {
 
 	ActorSystem actorSystem(Sys::hostname(), defaultDispatcher, defaultMailbox);
 
-//	ActorRef sender = actorSystem.actorOf<Sender>("sender");
+	ActorRef sender = actorSystem.actorOf<Sender>("sender");
 	ActorRef wifi = actorSystem.actorOf<Wifi>("wifi");
 
 	ActorRef mqtt = actorSystem.actorOf<Mqtt>(Props::create()
@@ -97,11 +106,11 @@ void akkaMainTask(void* pvParameter) {
 	defaultDispatcher.unhandled(bridge.cell());
 	mqttDispatcher.attach(mqttMailbox);
 
-	xTaskCreate(&mqtt_task, "mqtt_task", 1024, &mqttDispatcher, tskIDLE_PRIORITY + 2, NULL);
+	xTaskCreate(&mqtt_task, "mqtt_task", 640, &mqttDispatcher, tskIDLE_PRIORITY + 3, NULL);
 	defaultDispatcher.execute();
 
 }
 extern "C" void user_init(void) {
 	uart_set_baud(0, 115200);
-	xTaskCreate(&akkaMainTask, "akkaMainTask", 2000, NULL, tskIDLE_PRIORITY + 2, NULL);
+	xTaskCreate(&akkaMainTask, "akkaMainTask", 640, NULL, tskIDLE_PRIORITY + 2, NULL);
 }

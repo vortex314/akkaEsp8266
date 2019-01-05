@@ -30,8 +30,8 @@ class Mqtt : public Actor {
 		struct mqtt_network _network;
 		mqtt_client_t _client = mqtt_client_default;
 		char _mqtt_client_id[20];
-		uint8_t _mqtt_buf[100];
-		uint8_t _mqtt_readbuf[100];
+		uint8_t _mqtt_buf[512];
+		uint8_t _mqtt_readbuf[512];
 		mqtt_packet_connect_data_t _data;
 		string _topicAlive;
 		string _topicsForDevice;

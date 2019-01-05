@@ -14,14 +14,14 @@ Wifi::Wifi(va_list args) {
 };
 
 void Wifi::preStart() {
-	timers().startPeriodicTimer("INTERVAL", TimerExpired(), 2000);
+	timers().startPeriodicTimer("INTERVAL", Msg("check"), 2000);
 	ZERO(_config);
 	strcpy((char*)_config.password, _pswd.c_str());
 	if(sdk_wifi_get_opmode() == SOFTAP_MODE) { INFO("ap mode can't scan !!!\r\n"); }
 	_foundAP = false;
 
 	SCAN = &receiveBuilder()
-	       .match(TimerExpired(),
+	       .match(MsgClass("check"),
 	[this](Envelope&) {
 		if(_state == START_SCAN) {
 			_foundAP=false;
@@ -52,7 +52,7 @@ void Wifi::preStart() {
 	// https://github.com/SuperHouse/esp-open-rtos/issues/333
 
 	DISCONNECTED = &receiveBuilder()
-	               .match(TimerExpired(),
+	               .match(MsgClass("check"),
 	[this](Envelope&) {
 		if ( _state==START_CONNECT ) {
 			sdk_wifi_station_disconnect();
@@ -91,12 +91,12 @@ void Wifi::preStart() {
 	.build();
 
 	CONNECTED = &receiveBuilder()
-	            .match(TimerExpired(),
+	            .match(MsgClass("check"),
 	[this](Envelope&) {
 		if(!isConnected()) {
 			INFO("disconnected...");
 			Msg  m(Wifi::Disconnected);
-			m(UID_SRC,self().id());
+			m.src(self().id());
 			eb.publish(m);
 			sdk_wifi_station_disconnect();
 			_foundAP = false;
@@ -107,18 +107,20 @@ void Wifi::preStart() {
 		}
 	})
 	.match(Properties(),[this](Envelope& msg) {
+//		INFO("%s",msg.toString().c_str());
+
 		uint8_t mac[13];
 		sdk_wifi_get_macaddr(STATION_IF, (uint8_t *) mac);
 		std::string macAddress;
 		string_format(macAddress,"%02X:%02X:%02X:%02X:%02X:%02X",mac[0],mac[1],mac[2],mac[3],mac[4],mac[5]);
-		sender().tell(Msg(PropertiesReply())
+		sender().tell(msg.reply()
 		              ("ip",_ipAddress)
 		              ("mac",macAddress)
 		              ("ssid",_ssid)
+		              ("rssi",_rssi)
 		              ,self());
 	})
 	.build();
-
 	_state = START_SCAN;
 	context().become(*SCAN);
 }
@@ -197,7 +199,7 @@ void Wifi::becomeConnected() {
 	}
 	INFO("WiFi: Connected");
 	Msg  m(Wifi::Connected);
-	m(UID_SRC,self().id());
+	m.src(self().id());
 	eb.publish(m);
 	context().become(*CONNECTED);
 }
