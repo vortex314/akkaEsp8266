@@ -22,7 +22,7 @@ void Wifi::preStart() {
 
 	SCAN = &receiveBuilder()
 	       .match(MsgClass("check"),
-	[this](Envelope&) {
+	[this](Msg&) {
 		if(_state == START_SCAN) {
 			_foundAP=false;
 			_state = SCANNING;
@@ -53,7 +53,7 @@ void Wifi::preStart() {
 
 	DISCONNECTED = &receiveBuilder()
 	               .match(MsgClass("check"),
-	[this](Envelope&) {
+	[this](Msg&) {
 		if ( _state==START_CONNECT ) {
 			sdk_wifi_station_disconnect();
 			netif_set_hostname(netif_default, Sys::hostname());
@@ -92,7 +92,7 @@ void Wifi::preStart() {
 
 	CONNECTED = &receiveBuilder()
 	            .match(MsgClass("check"),
-	[this](Envelope&) {
+	[this](Msg&) {
 		if(!isConnected()) {
 			INFO("disconnected...");
 			Msg  m(Wifi::Disconnected);
@@ -106,14 +106,14 @@ void Wifi::preStart() {
 			//INFO("connected...");
 		}
 	})
-	.match(Properties(),[this](Envelope& msg) {
+	.match(Properties(),[this](Msg& msg) {
 //		INFO("%s",msg.toString().c_str());
 
 		uint8_t mac[13];
 		sdk_wifi_get_macaddr(STATION_IF, (uint8_t *) mac);
 		std::string macAddress;
 		string_format(macAddress,"%02X:%02X:%02X:%02X:%02X:%02X",mac[0],mac[1],mac[2],mac[3],mac[4],mac[5]);
-		sender().tell(msg.reply()
+		sender().tell(replyBuilder(msg)
 		              ("ip",_ipAddress)
 		              ("mac",macAddress)
 		              ("ssid",_ssid)

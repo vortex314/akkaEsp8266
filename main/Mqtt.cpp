@@ -1,7 +1,7 @@
 #include "Mqtt.h"
 
 //#define MQTT_PORT 1883
-// .match(Exit, [](Envelope& msg) { exit(0); })
+// .match(Exit, [](Msg& msg) { exit(0); })
 #define MQTT_HOST "limero.ddns.net"
 #define MQTT_PORT 1883
 #define MQTT_USER ""
@@ -61,12 +61,12 @@ void Mqtt::preStart() {
 Receive& Mqtt::createReceive() {
 	return receiveBuilder()
 
-	.match(ReceiveTimeout(),[this](Envelope& msg) {
+	.match(ReceiveTimeout(),[this](Msg& msg) {
 		INFO("ReceiveTimeout");
 	})
 
 	.match(Mqtt::Publish,
-	[this](Envelope& msg) {
+	[this](Msg& msg) {
 //		INFO("%s",msg.toString().c_str());
 		std::string topic;
 		std::string message;
@@ -75,7 +75,7 @@ Receive& Mqtt::createReceive() {
 		}
 	})
 
-	.match(MsgClass("yieldTimer"),[this](Envelope& msg) {
+	.match(MsgClass("yieldTimer"),[this](Msg& msg) {
 		if(_mqttConnected) {
 			int ret = mqtt_yield(&_client, 10);
 			if(ret == MQTT_DISCONNECTED) {
@@ -88,22 +88,22 @@ Receive& Mqtt::createReceive() {
 	})
 
 	.match(Wifi::Connected,
-	[this](Envelope& msg) {
+	[this](Msg& msg) {
 		INFO(" WIFI CONNECTED !!");
 		_wifiConnected=true;
 		mqttConnect();
 	})
 
 	.match(Wifi::Disconnected,
-	[this](Envelope& msg) {
+	[this](Msg& msg) {
 		_wifiConnected = false;
 		INFO(" WIFI DISCONNECTED !!");
 		mqttDisconnect();
 	})
 
-	.match(Properties(),[this](Envelope& msg) {
+	.match(Properties(),[this](Msg& msg) {
 		INFO("%s",msg.toString().c_str());
-		sender().tell(msg.reply()
+		sender().tell(replyBuilder(msg)
 		              ("host",_address)
 		              ("port",MQTT_PORT)
 		              ("stack",(uint32_t)uxTaskGetStackHighWaterMark(NULL))

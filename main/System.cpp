@@ -33,29 +33,29 @@ void System::preStart() {
 
 Receive& System::createReceive() {
 	return receiveBuilder()
-	.match(ReceiveTimeout(), [this](Envelope& msg) { INFO(" No more messages since some time "); })
+	.match(ReceiveTimeout(), [this](Msg& msg) { INFO(" No more messages since some time "); })
 
-	.match(MsgClass("ledTimer"),[this](Envelope& msg) {
+	.match(MsgClass("ledTimer"),[this](Msg& msg) {
 		static bool ledOn = false;
 		_led.write(ledOn ? 1 : 0);
 		_led1.write(ledOn ? 1 : 0);
 		_led2.write(ledOn ? 1 : 0);
 		ledOn = !ledOn;
 	})
-	.match(MsgClass("reportTimer"),[this](Envelope& msg) {	logHeap();})
-	.match(MsgClass("relaisTimer"),[this](Envelope& msg) {
+	.match(MsgClass("reportTimer"),[this](Msg& msg) {	logHeap();})
+	.match(MsgClass("relaisTimer"),[this](Msg& msg) {
 		INFO("relais");
 		static bool relaisOn = false;
 		_relais.write(relaisOn ? 1 : 0);
 		relaisOn = !relaisOn;
 	})
 
-	.match(Mqtt::Connected,	[this](Envelope& msg) { INFO(" MQTT Connected "); timers().find(_ledTimer)->interval(500); })
+	.match(Mqtt::Connected,	[this](Msg& msg) { INFO(" MQTT Connected "); timers().find(_ledTimer)->interval(500); })
 
-	.match( Mqtt::Disconnected,	[this](Envelope& msg) { INFO(" MQTT Disconnected "); timers().find(_ledTimer)->interval(100); })
+	.match( Mqtt::Disconnected,	[this](Msg& msg) { INFO(" MQTT Disconnected "); timers().find(_ledTimer)->interval(100); })
 
-	.match(Properties(),[this](Envelope& msg) {
-		sender().tell(msg.reply()
+	.match(Properties(),[this](Msg& msg) {
+		sender().tell(replyBuilder(msg)
 		              ("build",__DATE__ " " __TIME__)
 		              ("cpu","ESP8266")
 		              ("procs",1)
