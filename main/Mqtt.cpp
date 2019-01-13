@@ -22,11 +22,11 @@ enum {
 
 
 Mqtt* Mqtt::_mqtt = 0;
-MsgClass Mqtt::Connected("Mqtt/Connected");
-MsgClass Mqtt::Disconnected("Mqtt/Disconnected");
-MsgClass Mqtt::PublishRcvd("Mqtt/PublishRcvd");
-MsgClass Mqtt::Publish("Mqtt/Publish");
-MsgClass Mqtt::Subscribe("Mqtt/Subscribe");
+MsgClass Mqtt::Connected("connected");
+MsgClass Mqtt::Disconnected("cisconnected");
+MsgClass Mqtt::PublishRcvd("publishRcvd");
+MsgClass Mqtt::Publish("publish");
+MsgClass Mqtt::Subscribe("subscribe");
 
 Mqtt::Mqtt(va_list args) {
 	_wifi = va_arg(args,ActorRef);
@@ -51,7 +51,7 @@ void Mqtt::preStart() {
 	_mqttConnected = false;
 	_wifiConnected = false;
 
-	_timerYield = timers().startPeriodicTimer("YIELD_TIMER", Msg("yieldTimer"), 500);
+	_timerYield = timers().startPeriodicTimer("YIELD_TIMER", Msg("yieldTimer"), 100);
 
 	eb.subscribe(self(), MessageClassifier(_wifi, Wifi::Disconnected));
 	eb.subscribe(self(), MessageClassifier(_wifi, Wifi::Connected));

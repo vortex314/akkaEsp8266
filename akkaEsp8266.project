@@ -6,7 +6,6 @@
     </Plugin>
   </Plugins>
   <VirtualDirectory Name="main">
-    <File Name="main/Sys.cpp.old"/>
     <File Name="main/Wifi.h"/>
     <File Name="main/Wifi.cpp"/>
     <File Name="main/System.h"/>

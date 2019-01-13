@@ -1,4 +1,4 @@
-PATH  := /home/lieven/workspace/esp-open-sdk/xtensa-lx106-elf/bin:$(PATH)
+9PATH  := /home/lieven/workspace/esp-open-sdk/xtensa-lx106-elf/bin:$(PATH)
 SHELL := env PATH=$(PATH) /bin/bash
 PROGRAM=akkaEsp8266
 EXTRA_COMPONENTS = extras/sntp extras/mdnsresponder extras/rboot-ota ../Common  ../ArduinoJson  extras/paho_mqtt_c
@@ -13,10 +13,10 @@ SERIAL_PORT ?= /dev/tty$(TTY)
 ESPPORT = $(SERIAL_PORT)
 SERIAL_BAUD = 115200
 LIBS= m hal gcc stdc++
-EXTRA_CFLAGS=-DEXTRAS_MDNS_RESPONDER -DLWIP_MDNS_RESPONDER=1 -DLWIP_NUM_NETIF_CLIENT_DATA=1 
+EXTRA_CFLAGS=  -O3 -DEXTRAS_MDNS_RESPONDER -DLWIP_MDNS_RESPONDER=1 -DLWIP_NUM_NETIF_CLIENT_DATA=1 
 EXTRA_CFLAGS += -DLWIP_NETIF_EXT_STATUS_CALLBACK=1 -DPSWD=${PSWD} -DSSID=${SSID}
 EXTRA_LDFLAGS= -Wl,--gc-sections
-EXTRA_CXXFLAGS += -g -ffunction-sections -fdata-sections  -fno-threadsafe-statics -std=c++11 
+EXTRA_CXXFLAGS +=  -O3 -g -ffunction-sections -fdata-sections  -fno-threadsafe-statics -std=c++11 
 EXTRA_CXXFLAGS += -fno-rtti -lstdc++ -fno-exceptions -DPSWD=${PSWD} -DSSID=${SSID} -DESP_OPEN_RTOS
 
 # FLAVOR=sdklike

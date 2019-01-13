@@ -62,55 +62,49 @@ bool isTask() {
 
 
 static void  mqtt_task(void *pvParameters) {
+	INFO(" MQTT task started [%X]",pxCurrentTCB);
 	setTask();
-	INFO(" MQTT task started");
 	MessageDispatcher* dispatcher = (MessageDispatcher*)pvParameters;
 
-	dispatcher->execute();
-	INFO(" MQTT task ended");
-
-
+//	dispatcher->execute();
 }
 
 void akkaMainTask(void* pvParameter) {
-	uart_set_baud(0, 115200);
-	Sys::delay(5000);
-	Sys::init();
-	printf("Starting Akka on %s heap : %d ", Sys::getProcessor(), Sys::getFreeHeap());
-	INFO("%s", Sys::getBoard());
-	INFO(" ActorCell : %d , ActorRef: %d , Uid : %d Mailbox: %d ",sizeof(ActorCell),sizeof(ActorRef),sizeof(Uid),sizeof(Mailbox));
-	Sys::init();
-
-	Mailbox defaultMailbox("default", 100);
-	Mailbox mqttMailbox("mqtt", 100);
-
-	MessageDispatcher defaultDispatcher;
-	MessageDispatcher mqttDispatcher;
-
-	ActorSystem actorSystem(Sys::hostname(), defaultDispatcher, defaultMailbox);
-
-	ActorRef sender = actorSystem.actorOf<Sender>("sender");
-	ActorRef wifi = actorSystem.actorOf<Wifi>("wifi");
-
-	ActorRef mqtt = actorSystem.actorOf<Mqtt>(Props::create()
-	                .withDispatcher(mqttDispatcher)
-	                .withMailbox(mqttMailbox)
-	                ,"mqtt",wifi);
-
-	ActorRef publisher = actorSystem.actorOf<Publisher>("publisher",mqtt);
-	ActorRef bridge = actorSystem.actorOf<Bridge>("bridge",mqtt);
-	ActorRef system = actorSystem.actorOf<System>("system",mqtt);
-	//ActorRef config = actorSystem.actorOf<ConfigActor>("config");
-
-	defaultDispatcher.attach(defaultMailbox);
-	defaultDispatcher.unhandled(bridge.cell());
-	mqttDispatcher.attach(mqttMailbox);
-
-	xTaskCreate(&mqtt_task, "mqtt_task", 640, &mqttDispatcher, tskIDLE_PRIORITY + 3, NULL);
-	defaultDispatcher.execute();
 
 }
 extern "C" void user_init(void) {
 	uart_set_baud(0, 115200);
-	xTaskCreate(&akkaMainTask, "akkaMainTask", 640, NULL, tskIDLE_PRIORITY + 2, NULL);
+	Sys::init();
+
+	printf("Starting Akka on %s heap : %d ", Sys::getProcessor(), Sys::getFreeHeap());
+	static Mailbox defaultMailbox("default", 100);
+	static MessageDispatcher defaultDispatcher( 2,  1024,tskIDLE_PRIORITY + 1);
+	defaultDispatcher.attach(defaultMailbox);
+	static ActorSystem actorSystem(Sys::hostname(), defaultDispatcher, defaultMailbox);
+
+	actorSystem.actorOf<Sender>("sender");
+	ActorRef wifi = actorSystem.actorOf<Wifi>("wifi");
+	ActorRef mqtt = actorSystem.actorOf<Mqtt>("mqtt",wifi);
+	defaultDispatcher.start();
+
+	ActorRef publisher = actorSystem.actorOf<Publisher>("publisher",mqtt);
+	ActorRef bridge = actorSystem.actorOf<Bridge>("bridge",mqtt);
+	defaultDispatcher.unhandled(bridge.cell());
+
+	ActorRef system = actorSystem.actorOf<System>("system",mqtt);
+	//ActorRef config = actorSystem.actorOf<ConfigActor>("config");
 }
+
+//	static Mailbox mqttMailbox("mqtt", 100);
+//	MessageDispatcher mqttDispatcher( 1,  1024,tskIDLE_PRIORITY + 1);
+//	mqttDispatcher.attach(mqttMailbox);
+//	mqttDispatcher.start();
+
+/*	ActorRef mqtt = actorSystem.actorOf<Mqtt>(Props::create()
+	                .withDispatcher(mqttDispatcher)
+	                .withMailbox(mqttMailbox)
+	                ,"mqtt",wifi);*/
+
+
+//	xTaskCreate(&mqtt_task, "mqtt_task", 640, &mqttDispatcher, tskIDLE_PRIORITY + 3, NULL);
+
