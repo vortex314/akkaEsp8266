@@ -5,7 +5,7 @@ MsgClass Wifi::Disconnected("Wifi/Disconnected");
 
 Wifi* Wifi::_wifi = 0; // system sigleton, needed in callback
 
-Wifi::Wifi(va_list args) {
+Wifi::Wifi() {
 	_wifi = this;
 	_foundAP = false;
 	_ssidPattern = "Merckx";
@@ -106,7 +106,7 @@ void Wifi::preStart() {
 			//INFO("connected...");
 		}
 	})
-	.match(Properties(),[this](Msg& msg) {
+	.match(MsgClass::Properties(),[this](Msg& msg) {
 //		INFO("%s",msg.toString().c_str());
 
 		uint8_t mac[13];
@@ -136,7 +136,7 @@ static const char* const auth_modes[] = { [AUTH_OPEN] = "Open",
 
 void Wifi::scan_done_cb(void* arg, sdk_scan_status_t status) {
 	char ssid[33]; // max SSID length + zero byte
-	static string ssidStr;
+	static std::string ssidStr;
 
 	INFO("scan_done_cb()");
 

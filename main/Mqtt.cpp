@@ -23,19 +23,16 @@ enum {
 
 Mqtt* Mqtt::_mqtt = 0;
 MsgClass Mqtt::Connected("connected");
-MsgClass Mqtt::Disconnected("cisconnected");
+MsgClass Mqtt::Disconnected("disconnected");
 MsgClass Mqtt::PublishRcvd("publishRcvd");
 MsgClass Mqtt::Publish("publish");
 MsgClass Mqtt::Subscribe("subscribe");
 
-Mqtt::Mqtt(va_list args) {
-	_wifi = va_arg(args,ActorRef);
+Mqtt::Mqtt(ActorRef& wifi) : _wifi(wifi) {
 //	_address = va_arg(args, const char*);
 	_address = MQTT_HOST;
 	_wifiConnected = false;
 	_mqttConnected = false;
-	Uid::hash("topic");
-	Uid::hash("message");
 	_mqtt = this;
 }
 
@@ -61,7 +58,7 @@ void Mqtt::preStart() {
 Receive& Mqtt::createReceive() {
 	return receiveBuilder()
 
-	.match(ReceiveTimeout(),[this](Msg& msg) {
+	.match(MsgClass::ReceiveTimeout(),[this](Msg& msg) {
 		INFO("ReceiveTimeout");
 	})
 
@@ -101,7 +98,7 @@ Receive& Mqtt::createReceive() {
 		mqttDisconnect();
 	})
 
-	.match(Properties(),[this](Msg& msg) {
+	.match(MsgClass::Properties(),[this](Msg& msg) {
 		INFO("%s",msg.toString().c_str());
 		sender().tell(replyBuilder(msg)
 		              ("host",_address)

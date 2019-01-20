@@ -33,26 +33,17 @@ class Mqtt : public Actor {
 		uint8_t _mqtt_buf[512];
 		uint8_t _mqtt_readbuf[512];
 		mqtt_packet_connect_data_t _data;
-		string _topicAlive;
-		string _topicsForDevice;
+		std::string _topicAlive;
+		std::string _topicsForDevice;
 		bool _wifiConnected;
 		bool _mqttConnected;
-		//   string _topicRxd;
-		//   string _messageRxd;
-		//    string _topic;
-		//    string _message;
-		//    string _topicTxd;
-		//    string _messageTxd;
-		//   Envelope _messageEb;
-		//   bool _busyTxd;
-
-		bool _receiving;
+//		bool _receiving;
 		StaticJsonBuffer<2000> _jsonBuffer;
-		string _clientId;
-		string _address;
-		Uid _timerYield;
-		Uid _timerAlive;
-		ActorRef _wifi;
+		std::string _clientId;
+		std::string _address;
+		Label _timerYield;
+		Label _timerAlive;
+		ActorRef& _wifi;
 
 	public:
 		static Mqtt* _mqtt;
@@ -63,11 +54,12 @@ class Mqtt : public Actor {
 		static MsgClass Subscribe;
 
 
-		Mqtt(va_list args);
+		Mqtt(ActorRef& wifi);
+		virtual ~Mqtt() {};
 
-		void publish(string& topic, string& message);
+		void publish(std::string& topic, std::string& message);
 		static void topic_received_cb(mqtt_message_data_t* md);
-		void onMessageReceived(string& topic, string& payload);
+		void onMessageReceived(std::string& topic, std::string& payload);
 
 		void mqttPublish(std::string& topic, std::string& message);
 		void mqttSubscribe(const char* topic);

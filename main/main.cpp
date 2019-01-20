@@ -77,21 +77,18 @@ extern "C" void user_init(void) {
 	Sys::init();
 
 	printf("Starting Akka on %s heap : %d ", Sys::getProcessor(), Sys::getFreeHeap());
-	static Mailbox defaultMailbox("default", 100);
 	static MessageDispatcher defaultDispatcher( 2,  1024,tskIDLE_PRIORITY + 1);
-	defaultDispatcher.attach(defaultMailbox);
-	static ActorSystem actorSystem(Sys::hostname(), defaultDispatcher, defaultMailbox);
+	static ActorSystem actorSystem(Sys::hostname(), defaultDispatcher);
 
 	actorSystem.actorOf<Sender>("sender");
-	ActorRef wifi = actorSystem.actorOf<Wifi>("wifi");
-	ActorRef mqtt = actorSystem.actorOf<Mqtt>("mqtt",wifi);
-	defaultDispatcher.start();
+	ActorRef& wifi = actorSystem.actorOf<Wifi>("wifi");
+	ActorRef& mqtt = actorSystem.actorOf<Mqtt>("mqtt",wifi);
+//	defaultDispatcher.start();
 
-	ActorRef publisher = actorSystem.actorOf<Publisher>("publisher",mqtt);
-	ActorRef bridge = actorSystem.actorOf<Bridge>("bridge",mqtt);
-	defaultDispatcher.unhandled(bridge.cell());
+	ActorRef& publisher = actorSystem.actorOf<Publisher>("publisher",mqtt);
+	ActorRef& bridge = actorSystem.actorOf<Bridge>("bridge",mqtt);
 
-	ActorRef system = actorSystem.actorOf<System>("system",mqtt);
+	ActorRef& system = actorSystem.actorOf<System>("system",mqtt);
 	//ActorRef config = actorSystem.actorOf<ConfigActor>("config");
 }
 

@@ -9,12 +9,12 @@ void logHeap() {
 	INFO("  free heap : %d stack:%d ", xPortGetFreeHeapSize(), uxTaskGetStackHighWaterMark(NULL));
 }
 
-System::System(va_list args)
+System::System(ActorRef& mqtt)
 	: _led(DigitalOut::create(13))
 	, _relais(DigitalOut::create(12))
 	, _led1(DigitalOut::create(16))
-	, _led2(DigitalOut::create(2)) {
-	_mqtt = va_arg(args,ActorRef);
+	, _led2(DigitalOut::create(2))
+	,_mqtt(mqtt) {
 }
 
 System::~System() {}
@@ -33,7 +33,7 @@ void System::preStart() {
 
 Receive& System::createReceive() {
 	return receiveBuilder()
-	.match(ReceiveTimeout(), [this](Msg& msg) { INFO(" No more messages since some time "); })
+	.match(MsgClass::ReceiveTimeout(), [this](Msg& msg) { INFO(" No more messages since some time "); })
 
 	.match(MsgClass("ledTimer"),[this](Msg& msg) {
 		static bool ledOn = false;
@@ -54,7 +54,7 @@ Receive& System::createReceive() {
 
 	.match( Mqtt::Disconnected,	[this](Msg& msg) { INFO(" MQTT Disconnected "); timers().find(_ledTimer)->interval(100); })
 
-	.match(Properties(),[this](Msg& msg) {
+	.match(MsgClass::Properties(),[this](Msg& msg) {
 		sender().tell(replyBuilder(msg)
 		              ("build",__DATE__ " " __TIME__)
 		              ("cpu","ESP8266")

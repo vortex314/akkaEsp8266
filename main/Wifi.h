@@ -15,10 +15,10 @@
 class Wifi : public Actor {
 		uint8_t status = 0;
 		struct sdk_station_config _config;
-		string _ssidPattern;
-		string _ssid;
-		string _pswd;
-		string _ipAddress;
+		std::string _ssidPattern;
+		std::string _ssid;
+		std::string _pswd;
+		std::string _ipAddress;
 		bool _foundAP;
 		static Wifi* _wifi;
 		int _rssi;
@@ -34,7 +34,7 @@ class Wifi : public Actor {
 	public:
 		static MsgClass Connected;
 		static MsgClass Disconnected;
-		Wifi(va_list args);
+		Wifi();
 
 		void preStart();
 		Receive& createReceive();
