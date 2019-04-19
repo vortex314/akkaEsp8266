@@ -16,6 +16,7 @@
 #include <task.h>
 
 #include <Akka.cpp>
+#include <Native.cpp>
 #include <Echo.cpp>
 #include <Bridge.cpp>
 #include <Mqtt.h>
@@ -25,6 +26,11 @@
 #include <System.h>
 #include <Wifi.h>
 #include <RtosQueue.h>
+
+#include <Config.h>
+#include <DWM1000.h>
+#include <DWM1000_Tag.h>
+#include <DWM1000_Anchor.h>
 
 /******************************************************************************
  * FunctionName : app_main
@@ -83,25 +89,19 @@ extern "C" void user_init(void) {
 	actorSystem.actorOf<Sender>("sender");
 	ActorRef& wifi = actorSystem.actorOf<Wifi>("wifi");
 	ActorRef& mqtt = actorSystem.actorOf<Mqtt>("mqtt",wifi);
-//	defaultDispatcher.start();
-
 	ActorRef& publisher = actorSystem.actorOf<Publisher>("publisher",mqtt);
 	ActorRef& bridge = actorSystem.actorOf<Bridge>("bridge",mqtt);
-
 	ActorRef& system = actorSystem.actorOf<System>("system",mqtt);
-	//ActorRef config = actorSystem.actorOf<ConfigActor>("config");
+
+    std::string role;
+    config.setNameSpace("LPS");
+    config.get("role",role,"N");
+    role="T";
+    if ( role.at(0)=='T' ) {
+    	ActorRef& tag = actorSystem.actorOf<DWM1000_Tag>("tag",Spi::create(12,13,14,15),DigitalIn::create(4),DigitalOut::create(5),123,(uint8_t*)"ABCDEF");
+    } else if ( role.at(0)=='A'  ) {
+    	ActorRef& anchor = actorSystem.actorOf<DWM1000_Anchor>("tag",Spi::create(12,13,14,15),DigitalIn::create(4),DigitalOut::create(5),456,(uint8_t*)"GHIJKL");
+    }
 }
 
-//	static Mailbox mqttMailbox("mqtt", 100);
-//	MessageDispatcher mqttDispatcher( 1,  1024,tskIDLE_PRIORITY + 1);
-//	mqttDispatcher.attach(mqttMailbox);
-//	mqttDispatcher.start();
-
-/*	ActorRef mqtt = actorSystem.actorOf<Mqtt>(Props::create()
-	                .withDispatcher(mqttDispatcher)
-	                .withMailbox(mqttMailbox)
-	                ,"mqtt",wifi);*/
-
-
-//	xTaskCreate(&mqtt_task, "mqtt_task", 640, &mqttDispatcher, tskIDLE_PRIORITY + 3, NULL);
 

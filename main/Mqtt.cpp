@@ -5,6 +5,7 @@
 #define MQTT_HOST "limero.ddns.net"
 #define MQTT_PORT 1883
 #define MQTT_USER ""
+
 #define MQTT_PASS ""
 
 enum {
@@ -48,7 +49,7 @@ void Mqtt::preStart() {
 	_mqttConnected = false;
 	_wifiConnected = false;
 
-	_timerYield = timers().startPeriodicTimer("YIELD_TIMER", Msg("yieldTimer"), 100);
+	_timerYield = timers().startPeriodicTimer("YIELD_TIMER", Msg("yieldTimer"), 1000);
 
 	eb.subscribe(self(), MessageClassifier(_wifi, Wifi::Disconnected));
 	eb.subscribe(self(), MessageClassifier(_wifi, Wifi::Connected));
@@ -70,11 +71,12 @@ Receive& Mqtt::createReceive() {
 		if ( msg.get("topic",topic)==0 && msg.get("message",message)==0 ) {
 			mqttPublish(topic,message);
 		}
+		mqtt_yield(&_client, 100);
 	})
 
 	.match(MsgClass("yieldTimer"),[this](Msg& msg) {
 		if(_mqttConnected) {
-			int ret = mqtt_yield(&_client, 10);
+			int ret = mqtt_yield(&_client, 100);
 			if(ret == MQTT_DISCONNECTED) {
 				mqttDisconnect();
 				mqttConnect();
