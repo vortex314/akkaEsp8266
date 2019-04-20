@@ -6,14 +6,12 @@
 
 #include "esp/uart.h"
 #include "espressif/esp_common.h"
-
+#include <espressif/esp_sta.h>
+#include <espressif/esp_wifi.h>
 #include <string.h>
 
 #include <FreeRTOS.h>
 #include <task.h>
-
-#include <espressif/esp_sta.h>
-#include <espressif/esp_wifi.h>
 
 #include <Akka.h>
 #include <Wifi.h>

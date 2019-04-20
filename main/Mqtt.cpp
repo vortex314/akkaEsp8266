@@ -20,8 +20,6 @@ enum {
 	MQTT_DO_PUBLISH        // 8
 };
 
-
-
 Mqtt* Mqtt::_mqtt = 0;
 MsgClass Mqtt::Connected("connected");
 MsgClass Mqtt::Disconnected("disconnected");
@@ -29,7 +27,8 @@ MsgClass Mqtt::PublishRcvd("publishRcvd");
 MsgClass Mqtt::Publish("publish");
 MsgClass Mqtt::Subscribe("subscribe");
 
-Mqtt::Mqtt(ActorRef& wifi) : _wifi(wifi) {
+Mqtt::Mqtt(ActorRef& wifi)
+		: _wifi(wifi) {
 //	_address = va_arg(args, const char*);
 	_address = MQTT_HOST;
 	_wifiConnected = false;
@@ -49,7 +48,8 @@ void Mqtt::preStart() {
 	_mqttConnected = false;
 	_wifiConnected = false;
 
-	_timerYield = timers().startPeriodicTimer("YIELD_TIMER", Msg("yieldTimer"), 1000);
+	_timerYield =
+			timers().startPeriodicTimer("YIELD_TIMER", Msg("yieldTimer"), 100000);
 
 	eb.subscribe(self(), MessageClassifier(_wifi, Wifi::Disconnected));
 	eb.subscribe(self(), MessageClassifier(_wifi, Wifi::Connected));
@@ -59,24 +59,21 @@ void Mqtt::preStart() {
 Receive& Mqtt::createReceive() {
 	return receiveBuilder()
 
-	.match(MsgClass::ReceiveTimeout(),[this](Msg& msg) {
+	.match(MsgClass::ReceiveTimeout(), [this](Msg& msg) {
 		INFO("ReceiveTimeout");
 	})
 
-	.match(Mqtt::Publish,
-	[this](Msg& msg) {
-//		INFO("%s",msg.toString().c_str());
+	.match(Mqtt::Publish, [this](Msg& msg) {
 		std::string topic;
 		std::string message;
 		if ( msg.get("topic",topic)==0 && msg.get("message",message)==0 ) {
 			mqttPublish(topic,message);
 		}
-		mqtt_yield(&_client, 100);
 	})
 
-	.match(MsgClass("yieldTimer"),[this](Msg& msg) {
+	.match(MsgClass("yieldTimer"), [this](Msg& msg) {
 		if(_mqttConnected) {
-			int ret = mqtt_yield(&_client, 100);
+			int ret = mqtt_yield(&_client, 10);
 			if(ret == MQTT_DISCONNECTED) {
 				mqttDisconnect();
 				mqttConnect();
@@ -86,75 +83,79 @@ Receive& Mqtt::createReceive() {
 		}
 	})
 
-	.match(Wifi::Connected,
-	[this](Msg& msg) {
-		INFO(" WIFI CONNECTED !!");
+	.match(Wifi::Connected, [this](Msg& msg) {
 		_wifiConnected=true;
 		mqttConnect();
 	})
 
-	.match(Wifi::Disconnected,
-	[this](Msg& msg) {
+	.match(Wifi::Disconnected, [this](Msg& msg) {
 		_wifiConnected = false;
-		INFO(" WIFI DISCONNECTED !!");
 		mqttDisconnect();
 	})
 
-	.match(MsgClass::Properties(),[this](Msg& msg) {
-		INFO("%s",msg.toString().c_str());
+	.match(MsgClass::Properties(), [this](Msg& msg) {
 		sender().tell(replyBuilder(msg)
-		              ("host",_address)
-		              ("port",MQTT_PORT)
-		              ("stack",(uint32_t)uxTaskGetStackHighWaterMark(NULL))
-		              ,self());
-	})
-	.build();
+				("host",_address)
+				("port",MQTT_PORT)
+				("stack",(uint32_t)uxTaskGetStackHighWaterMark(NULL))
+				,self());
+	}).build();
 }
 /*
-void Mqtt::mqttYieldTask(void* pvParameter) {
-	while(true) {
-		//	INFO(" heap:%d  stack:%d ", xPortGetFreeHeapSize(), uxTaskGetStackHighWaterMark(NULL));
-		if(_mqtt->_mqttConnected) {
-			mqtt_yield(&_mqtt->_client, 1000);
-		} else {
-			vTaskDelay(1000);
-		}
-	}
-}
-*/
+ void Mqtt::mqttYieldTask(void* pvParameter) {
+ while(true) {
+ //	INFO(" heap:%d  stack:%d ", xPortGetFreeHeapSize(), uxTaskGetStackHighWaterMark(NULL));
+ if(_mqtt->_mqttConnected) {
+ mqtt_yield(&_mqtt->_client, 1000);
+ } else {
+ vTaskDelay(1000);
+ }
+ }
+ }
+ */
 void Mqtt::topic_received_cb(mqtt_message_data_t* md) {
-	mqtt_message_t* message = md->message;
-
-	std::string topic((char*)md->topic->lenstring.data, (uint32_t)md->topic->lenstring.len);
-	std::string data((char*)(message->payload), (uint32_t)message->payloadlen);
-	bool busy=false;
-	if ( !busy ) {
-		busy=true;
+	static bool busy = false;
+	if (!busy) {
+		mqtt_message_t* message = md->message;
+		std::string topic((char*) md->topic->lenstring.data, (uint32_t) md
+				->topic->lenstring.len);
+		std::string data((char*) (message->payload), (uint32_t) message
+				->payloadlen);
+		busy = true;
 		INFO("MQTT_EVENT_DATA");
 		//   me->self().tell(me-self(),MQTT_PUBLISH_RCVD,"SS",&topic,&msg);
-		Msg  pub(Mqtt::PublishRcvd);
+		Msg pub(Mqtt::PublishRcvd);
 		pub("topic", topic);
 		pub("message", data);
 		pub.src(_mqtt->self().id());
 //		INFO("%s",pub.toString().c_str());
 		eb.publish(pub);
-		busy=false;
+		busy = false;
 	} else {
 		WARN(" sorry ! MQTT reception busy ");
 	}
 }
 
 void Mqtt::mqttPublish(std::string& topic, std::string& msg) {
-	if(_mqttConnected) {
+	if (_mqttConnected) {
 		INFO(" MQTT TXD : %s = %s", topic.c_str(), msg.c_str());
 		mqtt_message_t message;
-		message.payload = (void*)msg.data();
+		message.payload = (void*) msg.data();
 		message.payloadlen = msg.size();
 		message.dup = 0;
 		message.qos = MQTT_QOS0;
 		message.retained = 0;
 		_ret = mqtt_publish(&_client, topic.c_str(), &message);
-		if(_ret != MQTT_SUCCESS) { INFO("error while publishing message: %d", _ret); mqttDisconnect(); }
+		if (_ret != MQTT_SUCCESS) {
+			INFO("error while publishing message: %d", _ret);
+			mqttDisconnect();
+			return;
+		}
+		_ret = mqtt_yield(&_client, 10);
+		if (_ret == MQTT_DISCONNECTED ) {
+			WARN(" mqtt_yield failed : %d ", _ret);
+			mqttDisconnect();
+		}
 	} else {
 		WARN(" cannot publish : disconnected. ");
 	}
@@ -176,26 +177,26 @@ bool Mqtt::mqttConnect() {
 
 	INFO("connecting to MQTT server %s:%d ... ", MQTT_HOST, MQTT_PORT);
 	_ret = mqtt_network_connect(&_network, MQTT_HOST, MQTT_PORT);
-	if(_ret) {
+	if (_ret) {
 		INFO("connect error: %d", _ret);
 		return false;
 	}
-	mqtt_client_new(&_client, &_network, 5000, _mqtt_buf, 256, _mqtt_readbuf, 256);
+	mqtt_client_new(&_client, &_network, 3000, _mqtt_buf, 1024, _mqtt_readbuf, 1024);
 
 	_data.willFlag = 0;
 	_data.MQTTVersion = 3;
 	_data.clientID.cstring = _mqtt_client_id;
-	_data.username.cstring = (char*)MQTT_USER;
+	_data.username.cstring = (char*) MQTT_USER;
 	//   _data.username.lenstring=0;
-	_data.password.cstring = (char*)MQTT_PASS;
+	_data.password.cstring = (char*) MQTT_PASS;
 	//    _data.password.lenstring=0;
 	_data.keepAliveInterval = 20;
 	_data.cleansession = 0;
-	_data.will.topicName.cstring = (char*)_topicAlive.c_str();
-	_data.will.message.cstring = (char*)"false";
+	_data.will.topicName.cstring = (char*) _topicAlive.c_str();
+	_data.will.message.cstring = (char*) "false";
 	INFO("Send MQTT connect ... ");
 	_ret = mqtt_connect(&_client, &_data);
-	if(_ret) {
+	if (_ret) {
 		eb.publish(Msg(Mqtt::Disconnected).src(self().id()));
 		INFO("error: %d", _ret);
 		mqtt_network_disconnect(&_network);
@@ -203,13 +204,14 @@ bool Mqtt::mqttConnect() {
 	};
 	mqttSubscribe(_topicsForDevice.c_str());
 	eb.publish(Msg(Mqtt::Connected).src(self().id()));
-	_mqttConnected=true;
+	_mqttConnected = true;
 	return true;
 }
 
 void Mqtt::mqttDisconnect() {
-	INFO(" disconencting.");
+	INFO(" disconnecting.");
+	mqtt_disconnect(&_client);
 	mqtt_network_disconnect(&_network);
-	_mqttConnected=false;
+	_mqttConnected = false;
 	eb.publish(Msg(Disconnected).src(self().id()));
 }

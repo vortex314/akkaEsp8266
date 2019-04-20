@@ -8,13 +8,10 @@
 class System : public Actor {
 		Label _ledTimer;
 		Label _reportTimer;
-		DigitalOut& _led;
-		DigitalOut& _relais;
 		DigitalOut& _led1;
 		DigitalOut& _led2;
 
 		uint32_t _interval = 100;
-		Label _relaisTimer;
 		ActorRef& _mqtt;
 
 	public:

@@ -53,7 +53,7 @@ extern "C" void vApplicationMallocFailedHook() {
 	exit(-1);
 }
 
-
+/*
 extern void* pxCurrentTCB;
 
 void* tcb=0;
@@ -64,8 +64,8 @@ void setTask() {
 }
 bool isTask() {
 	return tcb==pxCurrentTCB;
-}
-
+}*/
+/*
 
 static void  mqtt_task(void *pvParameters) {
 	INFO(" MQTT task started [%X]",pxCurrentTCB);
@@ -77,13 +77,13 @@ static void  mqtt_task(void *pvParameters) {
 
 void akkaMainTask(void* pvParameter) {
 
-}
+}*/
 extern "C" void user_init(void) {
-	uart_set_baud(0, 115200);
+	uart_set_baud(0, 921600);
 	Sys::init();
 
 	printf("Starting Akka on %s heap : %d ", Sys::getProcessor(), Sys::getFreeHeap());
-	static MessageDispatcher defaultDispatcher( 2,  1024,tskIDLE_PRIORITY + 1);
+	static MessageDispatcher defaultDispatcher( 2,  768,tskIDLE_PRIORITY + 1);
 	static ActorSystem actorSystem(Sys::hostname(), defaultDispatcher);
 
 	actorSystem.actorOf<Sender>("sender");
@@ -94,14 +94,14 @@ extern "C" void user_init(void) {
 	ActorRef& system = actorSystem.actorOf<System>("system",mqtt);
 
     std::string role;
-    config.setNameSpace("LPS");
+    config.setNameSpace("dwm1000");
     config.get("role",role,"N");
-    role="T";
     if ( role.at(0)=='T' ) {
-    	ActorRef& tag = actorSystem.actorOf<DWM1000_Tag>("tag",Spi::create(12,13,14,15),DigitalIn::create(4),DigitalOut::create(5),123,(uint8_t*)"ABCDEF");
+    	ActorRef& tag = actorSystem.actorOf<DWM1000_Tag>("tag",Spi::create(12,13,14,15),DigitalIn::create(4),DigitalOut::create(5),sdk_system_get_chip_id() & 0xFFFF,(uint8_t*)"ABCDEF");
     } else if ( role.at(0)=='A'  ) {
-    	ActorRef& anchor = actorSystem.actorOf<DWM1000_Anchor>("tag",Spi::create(12,13,14,15),DigitalIn::create(4),DigitalOut::create(5),456,(uint8_t*)"GHIJKL");
+    	ActorRef& anchor = actorSystem.actorOf<DWM1000_Anchor>("anchor",Spi::create(12,13,14,15),DigitalIn::create(4),DigitalOut::create(5),sdk_system_get_chip_id() & 0xFFFF,(uint8_t*)"GHIJKL");
     }
+    config.save();
 }
 
 
