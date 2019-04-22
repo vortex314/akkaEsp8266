@@ -78,15 +78,17 @@ static void  mqtt_task(void *pvParameters) {
 void akkaMainTask(void* pvParameter) {
 
 }*/
+#include <espressif/esp_system.h>
 extern "C" void user_init(void) {
 	uart_set_baud(0, 921600);
+	sdk_system_update_cpu_freq(SYS_CPU_160MHZ); // need for speed, DWM1000 doesn't wait !
 	Sys::init();
 
 	printf("Starting Akka on %s heap : %d ", Sys::getProcessor(), Sys::getFreeHeap());
 	static MessageDispatcher defaultDispatcher( 2,  768,tskIDLE_PRIORITY + 1);
 	static ActorSystem actorSystem(Sys::hostname(), defaultDispatcher);
 
-	actorSystem.actorOf<Sender>("sender");
+//	actorSystem.actorOf<Sender>("sender");
 	ActorRef& wifi = actorSystem.actorOf<Wifi>("wifi");
 	ActorRef& mqtt = actorSystem.actorOf<Mqtt>("mqtt",wifi);
 	ActorRef& publisher = actorSystem.actorOf<Publisher>("publisher",mqtt);
@@ -97,9 +99,9 @@ extern "C" void user_init(void) {
     config.setNameSpace("dwm1000");
     config.get("role",role,"N");
     if ( role.at(0)=='T' ) {
-    	ActorRef& tag = actorSystem.actorOf<DWM1000_Tag>("tag",Spi::create(12,13,14,15),DigitalIn::create(4),DigitalOut::create(5),sdk_system_get_chip_id() & 0xFFFF,(uint8_t*)"ABCDEF");
+    	ActorRef& tag = actorSystem.actorOf<DWM1000_Tag>("tag",publisher,Spi::create(12,13,14,15),DigitalIn::create(4),DigitalOut::create(5),sdk_system_get_chip_id() & 0xFFFF,(uint8_t*)"ABCDEF");
     } else if ( role.at(0)=='A'  ) {
-    	ActorRef& anchor = actorSystem.actorOf<DWM1000_Anchor>("anchor",Spi::create(12,13,14,15),DigitalIn::create(4),DigitalOut::create(5),sdk_system_get_chip_id() & 0xFFFF,(uint8_t*)"GHIJKL");
+    	ActorRef& anchor = actorSystem.actorOf<DWM1000_Anchor>("anchor",publisher,Spi::create(12,13,14,15),DigitalIn::create(4),DigitalOut::create(5),sdk_system_get_chip_id() & 0xFFFF,(uint8_t*)"GHIJKL");
     }
     config.save();
 }

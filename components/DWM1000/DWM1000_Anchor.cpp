@@ -92,9 +92,9 @@ void anchorInterruptHandler(void* obj) {
 //	ptr->self().signalFromIsr(ANCHOR_INTERRUPT.id());
 }
 
-DWM1000_Anchor::DWM1000_Anchor(Spi& spi, DigitalIn& irq, DigitalOut& reset,
-		uint16_t shortAddress, uint8_t longAddress[6])
-		: DWM1000(spi, irq, reset, shortAddress, longAddress)
+DWM1000_Anchor::DWM1000_Anchor(ActorRef& publisher, Spi& spi, DigitalIn& irq,
+		DigitalOut& reset, uint16_t shortAddress, uint8_t longAddress[6])
+		: _publisher(publisher), DWM1000(spi, irq, reset, shortAddress, longAddress)
 //int pin = 5;   // RESET PIN == D1 == GPIO5
 //    Actor(name),
 
@@ -110,6 +110,7 @@ DWM1000_Anchor::DWM1000_Anchor(Spi& spi, DigitalIn& irq, DigitalOut& reset,
 	_resps = 0;
 	_errs = 0;
 	_missed = 0;
+	_timeouts = 0;
 	_anchor = this;
 	_hasIrqEvent = false;
 	_state = RCV_ANY;
@@ -129,7 +130,7 @@ void DWM1000_Anchor::init() {
 	dwt_setcallbacks(txcallback, rxcallback);
 	dwt_setdblrxbuffmode(false);
 	dwt_enableframefilter(DWT_FF_DATA_EN | DWT_FF_BEACON_EN);
-	dwt_setinterrupt(DWT_INT_RFCG | DWT_INT_RFCE | DWT_INT_RFTO, 1);   // enable
+	dwt_setinterrupt(DWT_INT_RFCG | DWT_INT_RFCE | DWT_INT_RFTO | DWT_INT_TFRS, 1); // enable
 
 	_blinkTimerExpired = false;
 	dwt_setautorxreenable(true);
@@ -138,12 +139,25 @@ void DWM1000_Anchor::init() {
 
 }
 
+void DWM1000_Anchor::diag(const char* msg) {
+	uint32_t sys_mask, sys_status, sys_state;
+
+	sys_mask = dwt_read32bitreg(SYS_MASK_ID);
+	sys_status = dwt_read32bitreg(SYS_STATUS_ID);
+	sys_state = dwt_read32bitreg(SYS_STATE_ID);
+	INFO(" %s SYS_MASK : %X SYS_STATUS : %X SYS_STATE: %X state : %s IRQ : %d",
+			msg,sys_mask, sys_status, sys_state, Label::label(_state), _irq
+			.read());
+}
+
 void DWM1000_Anchor::preStart() {
 //_________________________________________________INIT SPI ESP8266
 	INFO("DWM1000 ANCHOR started.");
 	_count = 0;
 	_blinkTimer =
 			timers().startPeriodicTimer("BLINK_TIMER", Msg("blinkTimer"), 1000);
+	timers().startPeriodicTimer("CHECK", Msg("checkTimer"), 500);
+
 	DWM1000::setup();
 	init();
 }
@@ -158,9 +172,14 @@ Receive& DWM1000_Anchor::createReceive() {
 		run();
 	})
 
-	.match(LABEL("SignalFromIsr"), [this](Msg& msg) {
-		_interruptDelay = Sys::micros() - _interruptStart;
-//		dwt_isr();
+	.match(LABEL("checkTimer"), [this](Msg& msg) {
+		static uint32_t oldInterrupts=0;
+		static uint32_t oldPolls=0;
+		if ( _polls == oldPolls || _interrupts==oldInterrupts) {
+			diag(" lack polls & interrupts ");
+		}
+		oldInterrupts=_interrupts;
+		oldPolls=_polls;
 	})
 
 	.match(MsgClass::Properties(), [this](Msg& msg) {
@@ -180,37 +199,30 @@ Receive& DWM1000_Anchor::createReceive() {
 	}).build();
 }
 
+void DWM1000_Anchor::showRegs() {
+}
+
 void DWM1000_Anchor::run() {
-	static uint32_t oldInterrupts, oldPolls;
-	uint32_t sys_mask, sys_status, sys_state, retries;
+	static uint32_t oldInterrupts;
+	uint32_t sys_mask, sys_status, sys_state;
 
-	oldInterrupts = _interrupts;
-	oldPolls = _polls;
-	sys_mask = dwt_read32bitreg(SYS_MASK_ID);
-	sys_status = dwt_read32bitreg(SYS_STATUS_ID);
-	sys_state = dwt_read32bitreg(SYS_STATE_ID);
+	if (oldInterrupts == _interrupts) {
+		sys_mask = dwt_read32bitreg(SYS_MASK_ID);
+		sys_status = dwt_read32bitreg(SYS_STATUS_ID);
+		sys_state = dwt_read32bitreg(SYS_STATE_ID);
 
-	INFO(" SYS_MASK : %X SYS_STATUS : %X SYS_STATE: %X state : %s IRQ : %d", sys_mask, sys_status, sys_state, Label::label(_state), _irq
-			.read());
-
-	if (sys_state == 0x10000) { // IDLE
-		dwt_rxenable(0);
-	}
-	if ((oldInterrupts == _interrupts) || (oldPolls == _polls)) {
-		retries++;
-		if (retries == 20) {
-			WARN(" Re-initializing DWM1000 ...");
-			DWM1000::init();
-			init();
-			dwt_write32bitreg(SYS_STATUS_ID, SYS_STATUS_ALL_RX_GOOD | SYS_STATUS_ALL_RX_ERR);
-			dwt_setautorxreenable(false);
-			dwt_setrxtimeout(60000);
-			dwt_rxenable(0);
-			retries = 0;
+		INFO(" SYS_MASK : %X SYS_STATUS : %X SYS_STATE: %X state : %s IRQ : %d", sys_mask, sys_status, sys_state, Label::label(_state), _irq
+				.read());
+		if (sys_state == 0x10000) {
+			diag(" remains IDLE ");
+			/*	DWM1000::setup();
+			 init();*/
 		}
+		diag(" missing interrupts ");
+		enableRxd();
 	}
-
-	INFO(" interrupts : %d blinks : %d polls : %d resps : %d finals :%d heap : %d dist : %f", _interrupts, _blinks, _polls, _resps, _finals, Sys::getFreeHeap(), _distance);
+	oldInterrupts = _interrupts;
+	INFO(" interr: %d TO:%d blink: %d poll: %d resp: %d final: %d dist: %f delay: %d usec", _interrupts, _timeouts, _blinks, _polls, _resps, _finals, _distance, _interruptDelay);
 
 }
 
@@ -308,7 +320,7 @@ FrameType DWM1000_Anchor::readMsg(const dwt_callback_data_t* signal) {
 			DEBUG(" final %X : %d : %s", _finalMsg.getSrc(), _finalMsg.sequence, Label::label(_state));
 			_finals++;
 		} else {
-			DEBUG(" unknown frame type %X:%X : %s", _dwmMsg.fc[0], _dwmMsg.fc[1], Label::label(_state));
+			WARN(" unknown frame type %X:%X : %s", _dwmMsg.fc[0], _dwmMsg.fc[1], Label::label(_state));
 		}
 		return ft;
 	} else {
@@ -326,83 +338,59 @@ void DWM1000_Anchor::update(uint16_t src, uint8_t sequence) {
 	_lastSequence = sequence;
 }
 
-#include <pt.h>
+void DWM1000_Anchor::enableRxd() {
+	dwt_write32bitreg(SYS_STATUS_ID, SYS_STATUS_ALL_RX_GOOD | SYS_STATUS_ALL_RX_ERR);
+	dwt_setrxtimeout(60000); // 60 msec ?
+	dwt_rxenable(0);
+}
 
-int DWM1000_Anchor::FSM(const dwt_callback_data_t* signal) {
-	static struct pt pt;
-	PT_BEGIN(&pt)
-		;
-		WAIT_RXD: {
-			while (true) {
-				_state = RCV_ANY;
-				// enable            dwt_setrxaftertxdelay() read
-				PT_YIELD_UNTIL(&pt, true);
-				if (signal->event == DWT_SIG_RX_OKAY) {
-					FrameType ft = readMsg(signal);
-					if (ft == FT_POLL && _dwmMsg.getDst() == _shortAddress) {
-						update(_dwmMsg.getSrc(), _dwmMsg.sequence);
-						createRespMsg(_respMsg, _pollMsg);
-						if (sendRespMsg() == 0) {
-							_resps++;
-							goto WAIT_FINAL;
-						};
-						_errs += 1;
-					} else {
-						_errs += 1000;
-					}
-				} else if (signal->event == DWT_SIG_RX_TIMEOUT) {
-					dwt_write32bitreg(SYS_STATUS_ID, SYS_STATUS_RXRFTO); // Clear RX timeout event bit
-					if (_blinkTimerExpired) {
-						sendBlinkMsg();
-						_blinks++;
-						_blinkTimerExpired = false;
-					}
-				} else if (signal->event == DWT_SIG_TX_DONE) {
-					_errs += 100000000;
-					dwt_write32bitreg(SYS_STATUS_ID, SYS_STATUS_ALL_TX); // Clear TX event bit
-				} else {
-					_errs += 1000000;
-					WARN("unhandled event %d", signal->event);
-				}
-				dwt_write32bitreg(SYS_STATUS_ID, SYS_STATUS_ALL_RX_GOOD | SYS_STATUS_ALL_RX_ERR);
-				dwt_setrxtimeout(60000); // 60 msec ?
-				dwt_rxenable(0);
-			};
-		}
-
-		WAIT_FINAL: {
-			_state = RCV_FINAL;
-			PT_YIELD_UNTIL(&pt, true);
-			if (signal->event == DWT_SIG_RX_OKAY) {
-				FrameType ft = readMsg(signal);
-				if (ft == FT_FINAL) {
-					calcFinalMsg();
-					sendBlinkMsg();
-					_blinks++;
-//                goto WAIT_RXD; // just send a blink
-				} else {
-					WARN(" unexpected frame type %s", Label::label(ft));
-				}
+void DWM1000_Anchor::FSM(const dwt_callback_data_t* signal) {
+	if (signal->event == DWT_SIG_RX_OKAY) {
+		FrameType ft = readMsg(signal);
+		if (ft == FT_POLL && _dwmMsg.getDst() == _shortAddress) {
+			update(_dwmMsg.getSrc(), _dwmMsg.sequence);
+			createRespMsg(_respMsg, _pollMsg);
+			_resps++;
+			if (sendRespMsg() != 0) {
+				diag(" sendRespMsg fails ");
 			}
-			dwt_write32bitreg(SYS_STATUS_ID, SYS_STATUS_ALL_RX_GOOD | SYS_STATUS_ALL_RX_ERR);
-			dwt_setrxtimeout(60000); // 60 msec ?
-			dwt_rxenable(0);
-			goto WAIT_RXD;
+		} else if (ft == FT_FINAL) {
+			calcFinalMsg();
+			sendBlinkMsg();
+			_blinks++;
+			enableRxd();
+		} else {
+			WARN(" unexpected frame type %d", ft);
+			enableRxd();
 		}
-		;
-	PT_END(&pt);
+	} else if (signal->event == DWT_SIG_RX_TIMEOUT) {
+		_timeouts++;
+		dwt_write32bitreg(SYS_STATUS_ID, SYS_STATUS_RXRFTO); // Clear RX timeout event bit
+		if (_blinkTimerExpired) {
+			sendBlinkMsg();
+			_blinks++;
+			_blinkTimerExpired = false;
+		}
+		enableRxd();
+	} else if (signal->event == DWT_SIG_TX_DONE) {
+		dwt_write32bitreg(SYS_STATUS_ID, SYS_STATUS_ALL_TX); // Clear TX event bit
+		enableRxd();
+	} else {
+		WARN("unhandled event %d", signal->event);
+		enableRxd();
+	}
+	_interruptDelay = Sys::micros() - _interruptStart;
 }
 
 //_________________________________________________ IRQ handler
-
 void DWM1000_Anchor::rxcallback(const dwt_callback_data_t* signal) {
-_anchor->_interrupts++;
-_anchor->FSM(signal);
+	_anchor->_interrupts++;
+	_anchor->FSM(signal);
 }
 
 void DWM1000_Anchor::txcallback(const dwt_callback_data_t* signal) {
-_anchor->_interrupts++;
-_anchor->FSM(signal);
+	_anchor->_interrupts++;
+	_anchor->FSM(signal);
 }
 
 //===================================================================================
@@ -423,15 +411,15 @@ _anchor->FSM(signal);
  * @return  64-bit value of the read time-stamp.
  */
 static uint64 get_tx_timestamp_u64(void) {
-uint8 ts_tab[5];
-uint64 ts = 0;
-int i;
-dwt_readtxtimestamp(ts_tab);
-for (i = 4; i >= 0; i--) {
-	ts <<= 8;
-	ts |= ts_tab[i];
-}
-return ts;
+	uint8 ts_tab[5];
+	uint64 ts = 0;
+	int i;
+	dwt_readtxtimestamp(ts_tab);
+	for (i = 4; i >= 0; i--) {
+		ts <<= 8;
+		ts |= ts_tab[i];
+	}
+	return ts;
 }
 
 /*! ------------------------------------------------------------------------------------------------------------------
@@ -445,15 +433,15 @@ return ts;
  * @return  64-bit value of the read time-stamp.
  */
 static uint64 get_rx_timestamp_u64(void) {
-uint8 ts_tab[5];
-uint64 ts = 0;
-int i;
-dwt_readrxtimestamp(ts_tab);
-for (i = 4; i >= 0; i--) {
-	ts <<= 8;
-	ts |= ts_tab[i];
-}
-return ts;
+	uint8 ts_tab[5];
+	uint64 ts = 0;
+	int i;
+	dwt_readrxtimestamp(ts_tab);
+	for (i = 4; i >= 0; i--) {
+		ts <<= 8;
+		ts |= ts_tab[i];
+	}
+	return ts;
 }
 
 /*! ------------------------------------------------------------------------------------------------------------------
@@ -468,11 +456,11 @@ return ts;
  * @return none
  */
 static void final_msg_get_ts(const uint8 *ts_field, uint32 *ts) {
-int i;
-*ts = 0;
-for (i = 0; i < FINAL_MSG_TS_LEN; i++) {
-	*ts += ts_field[i] << (i * 8);
-}
+	int i;
+	*ts = 0;
+	for (i = 0; i < FINAL_MSG_TS_LEN; i++) {
+		*ts += ts_field[i] << (i * 8);
+	}
 }
 
 /*****************************************************************************************************************************************************

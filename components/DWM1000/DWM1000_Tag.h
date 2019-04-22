@@ -43,7 +43,7 @@ class RemoteAnchor {
 		void update(uint8_t sequence) {
 			_expires = Sys::millis() + ANCHOR_EXPIRE_TIME;
 			if (sequence > (_sequence + 1))
-				INFO(" dropped %d frames from 0x%X", sequence - _sequence - 1, _address);
+				INFO(" dropped %d frames from %d", sequence - _sequence - 1, _address);
 			_sequence = sequence;
 		}
 
@@ -51,7 +51,7 @@ class RemoteAnchor {
 			uint8_t sequence = blinkMsg.sequence;
 			_expires = Sys::millis() + ANCHOR_EXPIRE_TIME;
 			if (sequence > (_sequence + 1))
-				INFO(" dropped %d frames from 0x%X", sequence - _sequence - 1, _address);
+				INFO(" dropped %d frames from %d", sequence - _sequence - 1, _address);
 			little_endian(_x, blinkMsg.x);
 			little_endian(_y, blinkMsg.y);
 			little_endian(_distance, blinkMsg.distance);
@@ -75,6 +75,7 @@ class DWM1000_Tag: public Actor, public DWM1000 {
 		uint32_t _finals;
 		uint32_t _errs;
 		uint32_t _missed;
+		uint32_t _timeouts;
 
 		uint32_t _interruptDelay;
 
@@ -95,13 +96,15 @@ class DWM1000_Tag: public Actor, public DWM1000 {
 			RCV_RESP = H("RCV_RESP"),
 			RCV_FINAL = H("SND_FINAL")
 		} State;
-		uint16_t _currentAnchor;
+		RemoteAnchor* _currentAnchor;
 		State _state;
 		Label _pollTimer;
 		bool _pollTimerExpired;
+		ActorRef& _publisher;
+
 	public:
 		uint64_t _interruptStart;
-		DWM1000_Tag(Spi& spi, DigitalIn& irq, DigitalOut& reset,
+		DWM1000_Tag(ActorRef& publisher,Spi& spi, DigitalIn& irq, DigitalOut& reset,
 				uint16_t shortAddress, uint8_t longAddress[6]);
 		~DWM1000_Tag();
 		void mode(uint32_t m);
@@ -114,16 +117,18 @@ class DWM1000_Tag: public Actor, public DWM1000 {
 		int sendPollMsg();
 		static void rxcallback(const dwt_callback_data_t* event);
 		static void txcallback(const dwt_callback_data_t* event);
-		int FSM(const dwt_callback_data_t* signal);
+		void FSM(const dwt_callback_data_t* signal);
 		void onDWEvent(const dwt_callback_data_t* signal);
 		FrameType readMsg(const dwt_callback_data_t* signal);
 		void updateAnchors(uint16_t address, uint8_t sequence);
 		void updateAnchors(BlinkMsg& blinkMsg);
 		void expireAnchors();
-		bool pollAnchors();
+		bool pollAnchor();
 		void listAnchors(std::string& output);
 		void handleBlinkMsg();
 		void handleRespMsg();
+		void enableRxd();
+		void diag(const char* msg);
 	private:
 
 };

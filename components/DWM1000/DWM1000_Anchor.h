@@ -24,6 +24,7 @@ class DWM1000_Anchor: public Actor, public DWM1000 {
 		uint32_t _resps;
 		uint32_t _errs;
 		uint32_t _missed;
+		uint32_t _timeouts;
 
 		uint32_t _interruptDelay;
 
@@ -47,10 +48,11 @@ class DWM1000_Anchor: public Actor, public DWM1000 {
 		State _state;
 		Label _blinkTimer;
 		bool _blinkTimerExpired;
+		ActorRef& _publisher;
 
 	public:
 		uint64_t _interruptStart;
-		DWM1000_Anchor(Spi& spi, DigitalIn& irq, DigitalOut& reset,
+		DWM1000_Anchor(ActorRef& publisher,Spi& spi, DigitalIn& irq, DigitalOut& reset,
 				uint16_t shortAddress, uint8_t longAddress[6]);
 		~DWM1000_Anchor();
 		void mode(uint32_t m);
@@ -68,11 +70,14 @@ class DWM1000_Anchor: public Actor, public DWM1000 {
 		static void rxcallback(const dwt_callback_data_t* event);
 		static void txcallback(const dwt_callback_data_t* event);
 
-		int FSM(const dwt_callback_data_t* signal);
+		void FSM(const dwt_callback_data_t* signal);
 		void onDWEvent(const dwt_callback_data_t* event);
 		FrameType readMsg(const dwt_callback_data_t* signal);
 		void sendBlinkMsg();
 		void handleFinalMsg();
+		void enableRxd();
+		void showRegs();
+		void diag(const char* );
 };
 
 #endif /* DWM1000_Anchor_Tag_H_ */
