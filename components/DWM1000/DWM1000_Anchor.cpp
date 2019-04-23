@@ -80,7 +80,7 @@ void logAnchor(const char* s, uint32_t state, uint8_t* buffer,
 	strLogAnchor = ":";
 	for (int i = 0; i < length; i++)
 		strLogAnchor += buffer[i] + ":";
-	INFO("%s %s %s", s, Label::label(state), strLogAnchor.c_str());
+	INFO_ISR("%s %s %s", s, Label::label(state), strLogAnchor.c_str());
 }
 DWM1000_Anchor* DWM1000_Anchor::_anchor;
 MsgClass ANCHOR_INTERRUPT(LABEL("ANCHOR_INTERRUPT"));
@@ -145,8 +145,7 @@ void DWM1000_Anchor::diag(const char* msg) {
 	sys_mask = dwt_read32bitreg(SYS_MASK_ID);
 	sys_status = dwt_read32bitreg(SYS_STATUS_ID);
 	sys_state = dwt_read32bitreg(SYS_STATE_ID);
-	INFO(" %s SYS_MASK : %X SYS_STATUS : %X SYS_STATE: %X state : %s IRQ : %d",
-			msg,sys_mask, sys_status, sys_state, Label::label(_state), _irq
+	INFO(" %s SYS_MASK : %X SYS_STATUS : %X SYS_STATE: %X state : %s IRQ : %d", msg, sys_mask, sys_status, sys_state, Label::label(_state), _irq
 			.read());
 }
 
@@ -155,8 +154,9 @@ void DWM1000_Anchor::preStart() {
 	INFO("DWM1000 ANCHOR started.");
 	_count = 0;
 	_blinkTimer =
-			timers().startPeriodicTimer("BLINK_TIMER", Msg("blinkTimer"), 1000);
-	timers().startPeriodicTimer("CHECK", Msg("checkTimer"), 500);
+	timers().startPeriodicTimer("blink", Msg("blinkTimer"), 1000);
+	timers().startPeriodicTimer("check", Msg("checkTimer"), 5000);
+	timers().startPeriodicTimer("log", Msg("logTimer"), 1000);
 
 	DWM1000::setup();
 	init();
@@ -164,13 +164,18 @@ void DWM1000_Anchor::preStart() {
 
 Receive& DWM1000_Anchor::createReceive() {
 	return receiveBuilder().match(MsgClass::ReceiveTimeout(), [this](Msg& msg) {
-		INFO(" No more messages since some time ");
+	})
+
+	.match(MsgClass::Properties(), [this](Msg& msg) {
+	})
+
+	.match(MsgClass(LABEL("logTimer")), [this](Msg& msg) {
+		INFO(" interr: %d TO:%d blink: %d poll: %d resp: %d final: %d dist: %f delay: %d usec", _interrupts, _timeouts, _blinks, _polls, _resps, _finals, _distance, _interruptDelay);
 	})
 
 	.match(MsgClass(LABEL("blinkTimer")), [this](Msg& msg) {
-		_blinkTimerExpired=true;
-		run();
-	})
+			_blinkTimerExpired=true;
+		})
 
 	.match(LABEL("checkTimer"), [this](Msg& msg) {
 		static uint32_t oldInterrupts=0;
@@ -222,7 +227,6 @@ void DWM1000_Anchor::run() {
 		enableRxd();
 	}
 	oldInterrupts = _interrupts;
-	INFO(" interr: %d TO:%d blink: %d poll: %d resp: %d final: %d dist: %f delay: %d usec", _interrupts, _timeouts, _blinks, _polls, _resps, _finals, _distance, _interruptDelay);
 
 }
 
@@ -234,7 +238,7 @@ void DWM1000_Anchor::sendBlinkMsg() {
 	dwt_writetxdata(sizeof(_blinkMsg), _blinkMsg.buffer, 0);
 	dwt_writetxfctrl(sizeof(_blinkMsg), 0);
 	erc = dwt_starttx(DWT_START_TX_IMMEDIATE);
-	if (erc < 0) WARN("BLINK TXD FAILED");
+	if (erc < 0) WARN_ISR("WARN blink Txd failed");
 //    INFO("blink ");
 }
 
@@ -305,26 +309,29 @@ FrameType DWM1000_Anchor::readMsg(const dwt_callback_data_t* signal) {
 		FrameType ft = DWM1000::getFrameType(_dwmMsg);
 		if (ft == FT_BLINK) {
 			memcpy(_blinkMsg.buffer, _dwmMsg.buffer, sizeof(_blinkMsg));
-			DEBUG(" blink %X : %d : %s", _blinkMsg.getSrc(), _blinkMsg.sequence, Label::label(_state));
+			DEBUG_ISR(" blink %d : %d : %s", _blinkMsg.getSrc(), _blinkMsg
+					.sequence, Label::label(_state));
 			_blinks++;
 		} else if (ft == FT_POLL) {
 			memcpy(_pollMsg.buffer, _dwmMsg.buffer, sizeof(_pollMsg));
-			DEBUG(" poll %X : %d : %s", _pollMsg.getSrc(), _pollMsg.sequence, Label::label(_state));
+			DEBUG_ISR(" poll %d : %d : %s", _pollMsg.getSrc(), _pollMsg.sequence, Label::label(_state));
 			_polls++;
 		} else if (ft == FT_RESP) {
 			memcpy(_respMsg.buffer, _dwmMsg.buffer, sizeof(_respMsg));
-			DEBUG(" resp %X : %d : %s ", _respMsg.getSrc(), _respMsg.sequence, Label::label(_state));
+			DEBUG_ISR(" resp %d : %d : %s ", _respMsg.getSrc(), _respMsg
+					.sequence, Label::label(_state));
 			_resps++;
 		} else if (ft == FT_FINAL) {
 			memcpy(_finalMsg.buffer, _dwmMsg.buffer, sizeof(_finalMsg));
-			DEBUG(" final %X : %d : %s", _finalMsg.getSrc(), _finalMsg.sequence, Label::label(_state));
+			DEBUG_ISR(" final %d : %d : %s", _finalMsg.getSrc(), _finalMsg
+					.sequence, Label::label(_state));
 			_finals++;
 		} else {
-			WARN(" unknown frame type %X:%X : %s", _dwmMsg.fc[0], _dwmMsg.fc[1], Label::label(_state));
+			WARN_ISR("WARN unknown frame type %X:%X : %s", _dwmMsg.fc[0], _dwmMsg.fc[1], Label::label(_state));
 		}
 		return ft;
 	} else {
-		WARN(" invalid length %d : hdr %X:%X : %s", frameLength, _dwmMsg.fc[0], _dwmMsg
+		WARN_ISR("WARN invalid length %d : hdr %X:%X : %s", frameLength, _dwmMsg.fc[0], _dwmMsg
 				.fc[1], Label::label(_state));
 		return FT_UNKNOWN;
 	}
@@ -333,7 +340,7 @@ FrameType DWM1000_Anchor::readMsg(const dwt_callback_data_t* signal) {
 //===================================================================================
 void DWM1000_Anchor::update(uint16_t src, uint8_t sequence) {
 	if (sequence > (_lastSequence + 1)) {
-		WARN("dropped frames : %d", sequence - _lastSequence - 1);
+		WARN_ISR("dropped frames : %d", sequence - _lastSequence - 1);
 	}
 	_lastSequence = sequence;
 }
@@ -352,7 +359,7 @@ void DWM1000_Anchor::FSM(const dwt_callback_data_t* signal) {
 			createRespMsg(_respMsg, _pollMsg);
 			_resps++;
 			if (sendRespMsg() != 0) {
-				diag(" sendRespMsg fails ");
+				WARN_ISR(" sendRespMsg fails ");
 			}
 		} else if (ft == FT_FINAL) {
 			calcFinalMsg();
@@ -360,7 +367,7 @@ void DWM1000_Anchor::FSM(const dwt_callback_data_t* signal) {
 			_blinks++;
 			enableRxd();
 		} else {
-			WARN(" unexpected frame type %d", ft);
+			WARN_ISR("WARN unexpected frame type %d", ft);
 			enableRxd();
 		}
 	} else if (signal->event == DWT_SIG_RX_TIMEOUT) {
@@ -374,9 +381,9 @@ void DWM1000_Anchor::FSM(const dwt_callback_data_t* signal) {
 		enableRxd();
 	} else if (signal->event == DWT_SIG_TX_DONE) {
 		dwt_write32bitreg(SYS_STATUS_ID, SYS_STATUS_ALL_TX); // Clear TX event bit
-		enableRxd();
+//		enableRxd();
 	} else {
-		WARN("unhandled event %d", signal->event);
+		WARN_ISR("WARN unhandled event %d", signal->event);
 		enableRxd();
 	}
 	_interruptDelay = Sys::micros() - _interruptStart;

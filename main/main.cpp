@@ -31,6 +31,7 @@
 #include <DWM1000.h>
 #include <DWM1000_Tag.h>
 #include <DWM1000_Anchor.h>
+#include <LogIsr.h>
 
 /******************************************************************************
  * FunctionName : app_main
@@ -85,7 +86,7 @@ extern "C" void user_init(void) {
 	Sys::init();
 
 	printf("Starting Akka on %s heap : %d ", Sys::getProcessor(), Sys::getFreeHeap());
-	static MessageDispatcher defaultDispatcher( 2,  768,tskIDLE_PRIORITY + 1);
+	static MessageDispatcher defaultDispatcher( 1,  1024,tskIDLE_PRIORITY + 1);
 	static ActorSystem actorSystem(Sys::hostname(), defaultDispatcher);
 
 //	actorSystem.actorOf<Sender>("sender");
@@ -94,6 +95,7 @@ extern "C" void user_init(void) {
 	ActorRef& publisher = actorSystem.actorOf<Publisher>("publisher",mqtt);
 	ActorRef& bridge = actorSystem.actorOf<Bridge>("bridge",mqtt);
 	ActorRef& system = actorSystem.actorOf<System>("system",mqtt);
+	actorSystem.actorOf<LogIsr>("logIsr");
 
     std::string role;
     config.setNameSpace("dwm1000");

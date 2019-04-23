@@ -15,7 +15,7 @@ extern "C" {
 #include "deca_sleep.h"
 }
 #define MAX_ANCHORS 10
-RemoteAnchor anchors[MAX_ANCHORS];
+Anchor anchors[MAX_ANCHORS];
 
 uint32_t anchorsCount() {
 	uint32_t count = 0;
@@ -24,13 +24,13 @@ uint32_t anchorsCount() {
 	return count;
 }
 
-RemoteAnchor* anchorsFind(uint16_t address) {
+Anchor* anchorsFind(uint16_t address) {
 	for (uint32_t i = 0; i < MAX_ANCHORS; i++)
 		if (anchors[i]._address == address) return &anchors[i];
 	return 0;
 }
 
-RemoteAnchor* newAnchor(uint16_t address, uint32_t sequence) {
+Anchor* newAnchor(uint16_t address, uint32_t sequence) {
 	uint32_t nextFree = 0;
 	for (uint32_t i = 0; i < MAX_ANCHORS; i++)
 		if (anchors[i]._address == 0) {
@@ -123,8 +123,11 @@ DWM1000_Tag::~DWM1000_Tag() {
 
 void DWM1000_Tag::preStart() {
 	INFO("DWM1000 TAG started.");
-	timers().startPeriodicTimer("POLL_TIMER", Msg("pollTimer"), 300);
+	timers().startPeriodicTimer("poll", Msg("pollTimer"), 300);
 	timers().startPeriodicTimer("EXP", Msg("expireTimer"), 1000);
+	timers().startPeriodicTimer("check", Msg("checkTimer"), 5000);
+	timers().startPeriodicTimer("log", Msg("logTimer"), 1000);
+
 	DWM1000::setup();
 	init();
 }
@@ -136,18 +139,10 @@ Receive& DWM1000_Tag::createReceive() {
 
 	.match(LABEL("pollTimer"), [this](Msg& msg) {
 		_pollTimerExpired=true;
-		static uint32_t oldInterrupts = 0;
-			if (oldInterrupts == _interrupts) {
-				diag(" missing interrupts ");
-				enableRxd();
-			}
-			oldInterrupts = _interrupts;
-
 	})
 
-	.match(LABEL("expireTimer"), [this](Msg& msg) {
+	.match(LABEL("logTimer"), [this](Msg& msg) {
 		INFO("interr: %d TO:%d blink: %d poll: %d resp: %d final:%d anchors: %d delay:%d usec", _interrupts, _timeouts, _blinks, _polls, _resps, _finals, anchorsCount(), _interruptDelay);
-		expireAnchors();
 		Msg p(MsgClass::Properties());
 		std::string listAnchor;
 		listAnchors(listAnchor);
@@ -155,9 +150,17 @@ Receive& DWM1000_Tag::createReceive() {
 		_publisher.tell(props,self());
 	})
 
-	.match(SignalFromIsr, [this](Msg& msg) {
-//		INFO(" SignalFromIsr %d ",msg.id());
-		dwt_isr();
+	.match(LABEL("checkTimer"), [this](Msg& msg) {
+		static uint32_t oldInterrupts = 0;
+		if (oldInterrupts == _interrupts) {
+			diag(" missing interrupts ");
+			enableRxd();
+		}
+		oldInterrupts = _interrupts;
+	})
+
+	.match(LABEL("expireTimer"), [this](Msg& msg) {
+		expireAnchors();
 	})
 
 	.match(MsgClass::Properties(), [this](Msg& msg) {
@@ -240,7 +243,11 @@ int DWM1000_Tag::sendFinalMsg() {
 	dwt_writetxdata(sizeof(_finalMsg), _finalMsg.buffer, 0);
 	dwt_writetxfctrl(sizeof(_finalMsg), 0);
 
-	if (dwt_starttx(DWT_START_TX_DELAYED) < 0) return -1;
+	if (dwt_starttx(DWT_START_TX_DELAYED) < 0) {
+		WARN_ISR("starttx failed");
+		return -1;
+	}
+	_finals++;
 	return 0; // SEND FINAL MSG
 }
 
@@ -259,7 +266,7 @@ void DWM1000_Tag::handleBlinkMsg() {
 
 void DWM1000_Tag::updateAnchors(BlinkMsg& blinkMsg) {
 	uint16_t address = blinkMsg.getSrc();
-	RemoteAnchor* rap;
+	Anchor* rap;
 
 	if ((rap = anchorsFind(address)) == 0) {
 		rap = newAnchor(address, blinkMsg.sequence);
@@ -270,8 +277,8 @@ void DWM1000_Tag::updateAnchors(BlinkMsg& blinkMsg) {
 				->_distance);
 	} else {
 		rap->update(blinkMsg);
-		DEBUG(" upd anchor : %d x:%d y:%d dist: %d", address, rap->_x, rap->_y, rap
-				->_distance);
+		DEBUG_ISR(" upd anchor : %d x:%d y:%d dist: %d", address, rap->_x, rap
+				->_y, rap->_distance);
 	}
 
 }
@@ -289,7 +296,7 @@ void DWM1000_Tag::listAnchors(std::string& output) {
 }
 
 void DWM1000_Tag::updateAnchors(uint16_t address, uint8_t sequence) {
-	RemoteAnchor* rap;
+	Anchor* rap;
 	if ((rap = anchorsFind(address)) == 0) {
 		newAnchor(address, sequence);
 	} else {
@@ -304,7 +311,7 @@ void DWM1000_Tag::expireAnchors() {
 	for (uint32_t i = 0; i < MAX_ANCHORS; i++)
 		if (anchors[i]._address != 0) {
 			if (anchors[i].expired()) {
-				INFO(" expire anchor : %X ", anchors[i]._address);
+				INFO_ISR(" expire anchor : %d ", anchors[i]._address);
 				anchors[i].remove();
 			}
 		}
@@ -312,19 +319,23 @@ void DWM1000_Tag::expireAnchors() {
 
 bool DWM1000_Tag::pollAnchor() {
 //    INFO(" anchors : %d in %d ",_anchorIndex,anchors.size());
-	for ( int i=0;i<MAX_ANCHORS;i++) {
-		if ( i != _anchorIndex && anchors[_anchorIndex]._address != 0 ) {
-			_anchorIndex=i;
+	for (int i = 0; i < MAX_ANCHORS; i++) {
+		_anchorIndex = ++_anchorIndex % MAX_ANCHORS;
+		if (anchors[_anchorIndex]._address != 0) {
 			break;
 		}
 	}
-	INFO(" poll anchor[%d].addr= %d ",_anchorIndex,anchors[_anchorIndex]._address);
+	INFO_ISR(" poll anchor[%d].addr= %d ", _anchorIndex, anchors[_anchorIndex]
+			._address);
 	_currentAnchor = &anchors[_anchorIndex];
 	if (_currentAnchor->_address != 0) {
 		_currentAnchor->_sequence++;
 		createPollMsg(_pollMsg, _currentAnchor->_address, _currentAnchor
 				->_sequence);
-		if (sendPollMsg() < 0) return false;;
+		if (sendPollMsg() < 0) {
+			WARN_ISR(" sendPollMsg failed ");
+			return false;;
+		}
 	}
 	return true;
 }
@@ -344,7 +355,7 @@ bool DWM1000_Tag::pollAnchor() {
  *
  */
 void DWM1000_Tag::enableRxd() {
-	dwt_setautorxreenable(true);
+//	dwt_setautorxreenable(true);
 	dwt_write32bitreg(SYS_STATUS_ID, SYS_STATUS_ALL_RX_GOOD | SYS_STATUS_ALL_RX_ERR);
 	dwt_setrxtimeout(60000); // 60 msec ?
 	dwt_rxenable(0);
@@ -362,7 +373,7 @@ void DWM1000_Tag::FSM(const dwt_callback_data_t* signal) {
 			createFinalMsg(_finalMsg, _respMsg);
 			sendFinalMsg();
 		} else {
-			WARN(" unexpected frame type %d", ft);
+			WARN_ISR("WARN unexpected frame type %d", ft);
 			enableRxd();
 		}
 	} else if (signal->event == DWT_SIG_RX_TIMEOUT) {
@@ -372,17 +383,20 @@ void DWM1000_Tag::FSM(const dwt_callback_data_t* signal) {
 			_pollTimerExpired = false;
 			if (anchorsCount() > 0) {
 				if (!pollAnchor()) {
-					diag("pollAnchor failed");
+					WARN_ISR("WARN pollAnchor failed");
 				}
+			} else {
+				enableRxd();
 			}
+		} else {
+			enableRxd();
 		}
-		enableRxd();
 	} else if (signal->event == DWT_SIG_TX_DONE) {
 		// apparently irq cannot be suppressed
 		dwt_write32bitreg(SYS_STATUS_ID, SYS_STATUS_ALL_TX); // Clear TX event bit
 		enableRxd();
 	} else {
-		WARN("unhandled event %d", signal->event);
+		WARN_ISR("WARN unhandled event %d", signal->event);
 		enableRxd();
 	}
 	_interruptDelay = Sys::micros() - _interruptStart;
@@ -407,27 +421,30 @@ FrameType DWM1000_Tag::readMsg(const dwt_callback_data_t* signal) {
 		FrameType ft = DWM1000::getFrameType(_dwmMsg);
 		if (ft == FT_BLINK) {
 			memcpy(_blinkMsg.buffer, _dwmMsg.buffer, sizeof(_blinkMsg));
-			DEBUG(" blink %X : %d : %s", _blinkMsg.getSrc(), _blinkMsg.sequence, Label::label(_state));
+			DEBUG_ISR(" blink %d : %d : %s", _blinkMsg.getSrc(), _blinkMsg
+					.sequence, Label::label(_state));
 			_blinks++;
 		} else if (ft == FT_POLL) {
 			memcpy(_pollMsg.buffer, _dwmMsg.buffer, sizeof(_pollMsg));
-			DEBUG(" poll %X : %d : %s", _pollMsg.getSrc(), _pollMsg.sequence, Label::label(_state));
+			DEBUG_ISR(" poll %d : %d : %s", _pollMsg.getSrc(), _pollMsg.sequence, Label::label(_state));
 			_polls++;
 		} else if (ft == FT_RESP) {
 			memcpy(_respMsg.buffer, _dwmMsg.buffer, sizeof(_respMsg));
-			DEBUG(" resp %X : %d : %s ", _respMsg.getSrc(), _respMsg.sequence, Label::label(_state));
+			DEBUG_ISR(" resp %d : %d : %s ", _respMsg.getSrc(), _respMsg
+					.sequence, Label::label(_state));
 			_resps++;
 		} else if (ft == FT_FINAL) {
 			memcpy(_finalMsg.buffer, _dwmMsg.buffer, sizeof(_finalMsg));
-			DEBUG(" final %X : %d : %s", _finalMsg.getSrc(), _finalMsg.sequence, Label::label(_state));
+			DEBUG_ISR(" final %d : %d : %s", _finalMsg.getSrc(), _finalMsg
+					.sequence, Label::label(_state));
 			_finals++;
 		} else {
-			DEBUG(" unknown frame type %X:%X : %s", _dwmMsg.fc[0], _dwmMsg.fc[1], Label::label(_state));
+			WARN_ISR(" unknown frame type %X:%X : %s", _dwmMsg.fc[0], _dwmMsg.fc[1], Label::label(_state));
 		}
 		return ft;
 	} else {
-		WARN(" invalid length %d : hdr %X:%X : %s", frameLength, _dwmMsg.fc[0], _dwmMsg
-				.fc[1], Label::label(_state));
+		WARN_ISR("WARN invalid length %d : hdr %X:%X : %s", frameLength, _dwmMsg
+				.fc[0], _dwmMsg.fc[1], Label::label(_state));
 		return FT_UNKNOWN;
 	}
 }

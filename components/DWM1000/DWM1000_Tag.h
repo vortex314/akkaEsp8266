@@ -12,9 +12,10 @@
 #include <Hardware.h>
 #include <DWM1000.h>
 #include <DWM1000_Message.h>
+#include <LogIsr.h>
 
-#define ANCHOR_EXPIRE_TIME 60000
-class RemoteAnchor {
+#define ANCHOR_EXPIRE_TIME 3000
+class Anchor {
 	public:
 		uint16_t _address;
 		uint64_t _expires;
@@ -23,7 +24,7 @@ class RemoteAnchor {
 		int32_t _y;
 		uint32_t _distance;
 
-		RemoteAnchor(uint16_t address, uint8_t sequence) {
+		Anchor(uint16_t address, uint8_t sequence) {
 			_address = address;
 			_expires = Sys::millis() + ANCHOR_EXPIRE_TIME;
 			_sequence = sequence;
@@ -32,8 +33,8 @@ class RemoteAnchor {
 			_distance = 0;
 		}
 
-		RemoteAnchor()
-				: RemoteAnchor(0, 0) {
+		Anchor()
+				: Anchor(0, 0) {
 		}
 
 		bool expired() {
@@ -43,7 +44,7 @@ class RemoteAnchor {
 		void update(uint8_t sequence) {
 			_expires = Sys::millis() + ANCHOR_EXPIRE_TIME;
 			if (sequence > (_sequence + 1))
-				INFO(" dropped %d frames from %d", sequence - _sequence - 1, _address);
+				INFO_ISR(" dropped %d frames from %d", sequence - _sequence - 1, _address);
 			_sequence = sequence;
 		}
 
@@ -51,7 +52,7 @@ class RemoteAnchor {
 			uint8_t sequence = blinkMsg.sequence;
 			_expires = Sys::millis() + ANCHOR_EXPIRE_TIME;
 			if (sequence > (_sequence + 1))
-				INFO(" dropped %d frames from %d", sequence - _sequence - 1, _address);
+				INFO_ISR(" dropped %d frames from %d", sequence - _sequence - 1, _address);
 			little_endian(_x, blinkMsg.x);
 			little_endian(_y, blinkMsg.y);
 			little_endian(_distance, blinkMsg.distance);
@@ -96,7 +97,7 @@ class DWM1000_Tag: public Actor, public DWM1000 {
 			RCV_RESP = H("RCV_RESP"),
 			RCV_FINAL = H("SND_FINAL")
 		} State;
-		RemoteAnchor* _currentAnchor;
+		Anchor* _currentAnchor;
 		State _state;
 		Label _pollTimer;
 		bool _pollTimerExpired;

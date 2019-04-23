@@ -12,6 +12,7 @@
 #include <Hardware.h>
 #include <DWM1000_Message.h>
 #include <DWM1000.h>
+#include <LogIsr.h>
 
 class DWM1000_Anchor: public Actor, public DWM1000 {
 		static DWM1000_Anchor* _anchor;
