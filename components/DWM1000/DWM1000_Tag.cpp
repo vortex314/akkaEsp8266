@@ -74,27 +74,28 @@ static uint64 final_tx_ts;
 static uint64 get_tx_timestamp_u64(void);
 static uint64 get_rx_timestamp_u64(void);
 static void final_msg_set_ts(uint8 *ts_field, uint64 ts);
-//Timer rxcallbackTime("rxcallback time", 10);
-//Metric<uint32_t> frame_length("frame_length ", 10);
 
-enum {
-	SIG_MESSAGE, SIG_INTERRUPT
-};
-static const char* role = "T";
-MsgClass TAG_INTERRUPT(LABEL("TAG_INTERRUPT"));
-
+//_________________________________________________  IRQ Handler
 void tagInterruptHandler(void* obj) {
-	DWM1000_Tag* tag = (DWM1000_Tag*) obj;
-//	tag->self().signalFromIsr(TAG_INTERRUPT.id());
 	dwt_isr();
-	tag->_interruptStart = Sys::micros();
+}
+void DWM1000_Tag::rxcallback(const dwt_callback_data_t* signal) {
+	_tag->_interruptStart = Sys::micros();
+	_tag->_interrupts++;
+	_tag->FSM(signal);
 }
 
+void DWM1000_Tag::txcallback(const dwt_callback_data_t* signal) {
+	_tag->_interruptStart = Sys::micros();
+	_tag->_interrupts++;
+	_tag->FSM(signal);
+}
+//__________________________________________________
 DWM1000_Tag* DWM1000_Tag::_tag = 0;
 
 DWM1000_Tag::DWM1000_Tag(ActorRef& publisher, Spi& spi, DigitalIn& irq,
 		DigitalOut& reset, uint16_t shortAddress, uint8_t longAddress[6])
-		: _publisher(publisher), DWM1000(spi, irq, reset, shortAddress, longAddress) {
+		: _publisher(publisher), DWM1000(spi, irq, reset, shortAddress, longAddress), _irq(irq) {
 	_state = RCV_ANY;
 	_count = 0;
 	_interrupts = 0;
@@ -107,13 +108,11 @@ DWM1000_Tag::DWM1000_Tag(ActorRef& publisher, Spi& spi, DigitalIn& irq,
 	_timeouts = 0;
 	_state = RCV_ANY;
 	_tag = this;
-	irq.onChange(DigitalIn::DIN_RAISE, tagInterruptHandler, this);
 	_currentAnchor = &anchors[0];
 	_anchorIndex = 0;
 	_interruptDelay = 0;
 	_interruptStart = 0;
 	_pollTimerExpired = false;
-	_pollTimer = MsgClass("POLL_TIMER");
 	_panAddress = "ABC";
 	_count = 0;
 }
@@ -128,8 +127,10 @@ void DWM1000_Tag::preStart() {
 	timers().startPeriodicTimer("check", Msg("checkTimer"), 5000);
 	timers().startPeriodicTimer("log", Msg("logTimer"), 1000);
 
+	_irq.onChange(DigitalIn::DIN_RAISE, tagInterruptHandler, this);
 	DWM1000::setup();
 	init();
+
 }
 
 Receive& DWM1000_Tag::createReceive() {
@@ -170,7 +171,7 @@ Receive& DWM1000_Tag::createReceive() {
 		replyBuilder(msg)
 		("distance",_distance)
 		("anchors",listAnchor)
-		("role", role)
+		("role", "T")
 		("interrupts", _interrupts)
 		("polls", _polls)
 		("responses", _resps)
@@ -186,14 +187,24 @@ Receive& DWM1000_Tag::createReceive() {
 
 void DWM1000_Tag::init() {
 	dwt_setcallbacks(txcallback, rxcallback);
-	dwt_setrxaftertxdelay(POLL_TX_TO_RESP_RX_DLY_UUS);
-	dwt_setdblrxbuffmode(false);
-	dwt_setinterrupt(DWT_INT_RFCG | DWT_INT_RFCE | DWT_INT_RFTO | DWT_INT_TFRS, 1);
-	// enable receive frame good, receive frame bad fcs, receive TO
+	dwt_setinterrupt(DWT_INT_RFCG | DWT_INT_RFCE | DWT_INT_RFTO | DWT_INT_TFRS , 1);
 
-	dwt_setautorxreenable(true);
-	dwt_setrxtimeout(5000);
-	dwt_rxenable(0);
+	/*	dwt_setrxaftertxdelay(POLL_TX_TO_RESP_RX_DLY_UUS);
+	 dwt_setdblrxbuffmode(false);
+	 dwt_setinterrupt(DWT_INT_RFCG | DWT_INT_RFCE | DWT_INT_RFTO | DWT_INT_TFRS, 1);
+	 // enable receive frame good, receive frame bad fcs, receive TO
+	 dwt_setautorxreenable(true);
+	 dwt_setrxtimeout(5000);
+	 dwt_rxenable(0);*/
+
+	dwt_setrxantennadelay(RX_ANT_DLY);
+	dwt_settxantennadelay(TX_ANT_DLY);
+
+	/* Set expected response's delay and timeout. See NOTE 4, 5 and 6 below.
+	 * As this example only handles one incoming frame with always the same delay and timeout, those values can be set here once for all. */
+	dwt_setrxaftertxdelay(POLL_TX_TO_RESP_RX_DLY_UUS);
+	dwt_setrxtimeout(RESP_RX_TIMEOUT_UUS);
+	//   dwt_setpreambledetecttimeout(PRE_TIMEOUT);
 }
 
 void DWM1000_Tag::diag(const char* msg) {
@@ -207,7 +218,6 @@ void DWM1000_Tag::diag(const char* msg) {
 }
 
 void DWM1000_Tag::run() {
-
 }
 
 int DWM1000_Tag::sendPollMsg() {
@@ -216,12 +226,11 @@ int DWM1000_Tag::sendPollMsg() {
 	dwt_writetxfctrl(sizeof(_pollMsg), 0);
 	dwt_setrxaftertxdelay(POLL_TX_TO_RESP_RX_DLY_UUS);
 	dwt_setrxtimeout(RESP_RX_TIMEOUT_UUS);
-	if (dwt_starttx(DWT_START_TX_IMMEDIATE | DWT_RESPONSE_EXPECTED) < 0)
-		return -1;
-	return 0;
+	return dwt_starttx(DWT_START_TX_IMMEDIATE | DWT_RESPONSE_EXPECTED);
 }
 
 int DWM1000_Tag::sendFinalMsg() {
+	_finals++;
 	uint32 final_tx_time;
 
 	/* Retrieve poll transmission and response reception timestamp. */
@@ -243,12 +252,7 @@ int DWM1000_Tag::sendFinalMsg() {
 	dwt_writetxdata(sizeof(_finalMsg), _finalMsg.buffer, 0);
 	dwt_writetxfctrl(sizeof(_finalMsg), 0);
 
-	if (dwt_starttx(DWT_START_TX_DELAYED) < 0) {
-		WARN_ISR("starttx failed");
-		return -1;
-	}
-	_finals++;
-	return 0; // SEND FINAL MSG
+	return dwt_starttx(DWT_START_TX_DELAYED) ;
 }
 
 void DWM1000_Tag::handleBlinkMsg() {
@@ -280,7 +284,6 @@ void DWM1000_Tag::updateAnchors(BlinkMsg& blinkMsg) {
 		DEBUG_ISR(" upd anchor : %d x:%d y:%d dist: %d", address, rap->_x, rap
 				->_y, rap->_distance);
 	}
-
 }
 
 void DWM1000_Tag::listAnchors(std::string& output) {
@@ -303,7 +306,6 @@ void DWM1000_Tag::updateAnchors(uint16_t address, uint8_t sequence) {
 		rap->_sequence = sequence;
 		rap->_expires = Sys::millis() + ANCHOR_EXPIRE_TIME;
 	}
-
 }
 
 void DWM1000_Tag::expireAnchors() {
@@ -356,29 +358,32 @@ bool DWM1000_Tag::pollAnchor() {
  */
 void DWM1000_Tag::enableRxd() {
 //	dwt_setautorxreenable(true);
-	dwt_write32bitreg(SYS_STATUS_ID, SYS_STATUS_ALL_RX_GOOD | SYS_STATUS_ALL_RX_ERR);
+	dwt_write32bitreg(SYS_STATUS_ID, SYS_STATUS_ALL_RX_GOOD | SYS_STATUS_ALL_RX_ERR | SYS_STATUS_ALL_TX | SYS_STATUS_ALL_DBLBUFF);
 	dwt_setrxtimeout(60000); // 60 msec ?
-	dwt_rxenable(0);
+	if ( dwt_rxenable(0) < 0 ) WARN_ISR("WARN dwt_rxenable() failed ");
 }
 
 void DWM1000_Tag::FSM(const dwt_callback_data_t* signal) {
 
 	if (signal->event == DWT_SIG_RX_OKAY) {
+		dwt_write32bitreg(SYS_STATUS_ID, SYS_STATUS_ALL_RX_GOOD );
 		FrameType ft = readMsg(signal);
 		if (ft == FT_BLINK) {
 			handleBlinkMsg();
-			enableRxd();
 		} else if (ft == FT_RESP && _dwmMsg.getDst() == _shortAddress
 				&& _dwmMsg.getSrc() == _currentAnchor->_address) {
 			createFinalMsg(_finalMsg, _respMsg);
-			sendFinalMsg();
+			if ( sendFinalMsg() <0 ){
+				WARN_ISR("WARN sendFinalMsg failed");
+			}
 		} else {
 			WARN_ISR("WARN unexpected frame type %d", ft);
-			enableRxd();
 		}
+		dwt_rxenable(0);
 	} else if (signal->event == DWT_SIG_RX_TIMEOUT) {
+		dwt_write32bitreg(SYS_STATUS_ID,  SYS_STATUS_ALL_RX_ERR );
 		_timeouts++;
-		dwt_write32bitreg(SYS_STATUS_ID, SYS_STATUS_RXRFTO); // Clear RX timeout event bit
+//		dwt_write32bitreg(SYS_STATUS_ID, SYS_STATUS_RXRFTO); // Clear RX timeout event bit
 		if (_pollTimerExpired) {
 			_pollTimerExpired = false;
 			if (anchorsCount() > 0) {
@@ -386,31 +391,18 @@ void DWM1000_Tag::FSM(const dwt_callback_data_t* signal) {
 					WARN_ISR("WARN pollAnchor failed");
 				}
 			} else {
-				enableRxd();
+				dwt_rxenable(0);
 			}
 		} else {
-			enableRxd();
+			dwt_rxenable(0);
 		}
 	} else if (signal->event == DWT_SIG_TX_DONE) {
 		// apparently irq cannot be suppressed
 		dwt_write32bitreg(SYS_STATUS_ID, SYS_STATUS_ALL_TX); // Clear TX event bit
-		enableRxd();
 	} else {
 		WARN_ISR("WARN unhandled event %d", signal->event);
-		enableRxd();
 	}
 	_interruptDelay = Sys::micros() - _interruptStart;
-}
-
-//_________________________________________________ IRQ handler
-void DWM1000_Tag::rxcallback(const dwt_callback_data_t* signal) {
-	_tag->_interrupts++;
-	_tag->FSM(signal);
-}
-
-void DWM1000_Tag::txcallback(const dwt_callback_data_t* signal) {
-	_tag->_interrupts++;
-	_tag->FSM(signal);
 }
 
 FrameType DWM1000_Tag::readMsg(const dwt_callback_data_t* signal) {

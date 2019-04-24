@@ -14,7 +14,7 @@
 #include <DWM1000_Message.h>
 #include <LogIsr.h>
 
-#define ANCHOR_EXPIRE_TIME 3000
+#define ANCHOR_EXPIRE_TIME 5000
 class Anchor {
 	public:
 		uint16_t _address;
@@ -70,17 +70,13 @@ class DWM1000_Tag: public Actor, public DWM1000 {
 		static DWM1000_Tag* _tag;
 		uint32_t _interrupts;
 		uint32_t _polls;
-//    bool interrupt_detected;
 		uint32_t _resps;
 		uint32_t _blinks;
 		uint32_t _finals;
 		uint32_t _errs;
 		uint32_t _missed;
 		uint32_t _timeouts;
-
 		uint32_t _interruptDelay;
-
-//    uint32_t _frame_len;
 		BlinkMsg _blinkMsg;
 		PollMsg _pollMsg;
 		RespMsg _respMsg;
@@ -88,9 +84,7 @@ class DWM1000_Tag: public Actor, public DWM1000 {
 		DwmMsg _dwmMsg;
 		std::string _anchors;
 		uint32_t _anchorIndex;
-//    uint32_t _anchorMax;
 		std::string _panAddress;
-//    uint8_t _rxdSequence;
 
 		typedef enum {
 			RCV_ANY = H("RCV_ANY"),
@@ -99,9 +93,9 @@ class DWM1000_Tag: public Actor, public DWM1000 {
 		} State;
 		Anchor* _currentAnchor;
 		State _state;
-		Label _pollTimer;
 		bool _pollTimerExpired;
 		ActorRef& _publisher;
+		DigitalIn& _irq;
 
 	public:
 		uint64_t _interruptStart;

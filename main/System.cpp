@@ -4,7 +4,7 @@
 #include <task.h>
 
 void logHeap() {
-	/*  INFO(" heap:%d max_block:%d stack:%d ", heap_caps_get_free_size(MALLOC_CAP_32BIT),
+/*	  INFO(" heap:%d max_block:%d stack:%d ", heap_caps_get_free_size(MALLOC_CAP_32BIT),
 	      heap_caps_get_largest_free_block(MALLOC_CAP_32BIT), uxTaskGetStackHighWaterMark(NULL));*/
 //	INFO("  free heap : %d stack:%d ", xPortGetFreeHeapSize(), uxTaskGetStackHighWaterMark(NULL));
 }
@@ -20,7 +20,7 @@ System::~System() {}
 void System::preStart() {
 	_led1.init();
 	_led2.init();
-	_reportTimer = timers().startPeriodicTimer("REPORT_TIMER", Msg("reportTimer"), 5000);
+	_reportTimer = timers().startPeriodicTimer("REPORT_TIMER", Msg("reportTimer"), 1000);
 	_ledTimer = timers().startPeriodicTimer("LED_TIMER", Msg("ledTimer"), 100);
 	eb.subscribe(self(), MessageClassifier(_mqtt,Mqtt::Disconnected));
 	eb.subscribe(self(), MessageClassifier(_mqtt,Mqtt::Connected));

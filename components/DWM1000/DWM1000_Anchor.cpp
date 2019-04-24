@@ -86,15 +86,25 @@ DWM1000_Anchor* DWM1000_Anchor::_anchor;
 MsgClass ANCHOR_INTERRUPT(LABEL("ANCHOR_INTERRUPT"));
 
 void anchorInterruptHandler(void* obj) {
-	DWM1000_Anchor* ptr = (DWM1000_Anchor*) obj;
-	ptr->_interruptStart = Sys::micros();
 	dwt_isr();
-//	ptr->self().signalFromIsr(ANCHOR_INTERRUPT.id());
+}
+
+//_________________________________________________ IRQ handler
+void DWM1000_Anchor::rxcallback(const dwt_callback_data_t* signal) {
+	_anchor->_interruptStart = Sys::micros();
+	_anchor->_interrupts++;
+	_anchor->FSM(signal);
+}
+
+void DWM1000_Anchor::txcallback(const dwt_callback_data_t* signal) {
+	_anchor->_interruptStart = Sys::micros();
+	_anchor->_interrupts++;
+	_anchor->FSM(signal);
 }
 
 DWM1000_Anchor::DWM1000_Anchor(ActorRef& publisher, Spi& spi, DigitalIn& irq,
 		DigitalOut& reset, uint16_t shortAddress, uint8_t longAddress[6])
-		: _publisher(publisher), DWM1000(spi, irq, reset, shortAddress, longAddress)
+		: _publisher(publisher), DWM1000(spi, irq, reset, shortAddress, longAddress),_irq(irq)
 //int pin = 5;   // RESET PIN == D1 == GPIO5
 //    Actor(name),
 
@@ -114,7 +124,6 @@ DWM1000_Anchor::DWM1000_Anchor(ActorRef& publisher, Spi& spi, DigitalIn& irq,
 	_anchor = this;
 	_hasIrqEvent = false;
 	_state = RCV_ANY;
-	irq.onChange(DigitalIn::DIN_RAISE, anchorInterruptHandler, this);
 	_interruptDelay = 0;
 	_interruptStart = 0;
 	_lastSequence = 0;
@@ -158,8 +167,10 @@ void DWM1000_Anchor::preStart() {
 	timers().startPeriodicTimer("check", Msg("checkTimer"), 5000);
 	timers().startPeriodicTimer("log", Msg("logTimer"), 1000);
 
+	_irq.onChange(DigitalIn::DIN_RAISE, anchorInterruptHandler, this);
 	DWM1000::setup();
 	init();
+
 }
 
 Receive& DWM1000_Anchor::createReceive() {
@@ -244,19 +255,14 @@ void DWM1000_Anchor::sendBlinkMsg() {
 
 int DWM1000_Anchor::sendRespMsg() {
 	uint32 resp_tx_time;
-
 	poll_rx_ts = get_rx_timestamp_u64(); /* Retrieve poll reception timestamp. */
-
 	/* Set send time for response. See NOTE 8 below. */
-	resp_tx_time = (poll_rx_ts + (POLL_RX_TO_RESP_TX_DLY_UUS * UUS_TO_DWT_TIME))
-			>> 8;
-
-	dwt_writetxdata(sizeof(_respMsg), _respMsg.buffer, 0);
-	dwt_writetxfctrl(sizeof(_respMsg), 0);
-
+	resp_tx_time = (poll_rx_ts + (POLL_RX_TO_RESP_TX_DLY_UUS * UUS_TO_DWT_TIME)) >> 8;
 	dwt_setdelayedtrxtime(resp_tx_time);
 	dwt_setrxaftertxdelay(RESP_TX_TO_FINAL_RX_DLY_UUS);
 	dwt_setrxtimeout(FINAL_RX_TIMEOUT_UUS);
+	dwt_writetxdata(sizeof(_respMsg), _respMsg.buffer, 0);
+	dwt_writetxfctrl(sizeof(_respMsg), 0);
 	if (dwt_starttx(DWT_START_TX_DELAYED | DWT_RESPONSE_EXPECTED) < 0) {
 		_missed++;
 		return -1;
@@ -346,7 +352,8 @@ void DWM1000_Anchor::update(uint16_t src, uint8_t sequence) {
 }
 
 void DWM1000_Anchor::enableRxd() {
-	dwt_write32bitreg(SYS_STATUS_ID, SYS_STATUS_ALL_RX_GOOD | SYS_STATUS_ALL_RX_ERR);
+	dwt_setautorxreenable(true);
+	dwt_write32bitreg(SYS_STATUS_ID, SYS_STATUS_ALL_RX_GOOD | SYS_STATUS_ALL_RX_ERR | SYS_STATUS_ALL_TX);
 	dwt_setrxtimeout(60000); // 60 msec ?
 	dwt_rxenable(0);
 }
@@ -360,11 +367,13 @@ void DWM1000_Anchor::FSM(const dwt_callback_data_t* signal) {
 			_resps++;
 			if (sendRespMsg() != 0) {
 				WARN_ISR(" sendRespMsg fails ");
+			} else {
+				enableRxd();
 			}
 		} else if (ft == FT_FINAL) {
 			calcFinalMsg();
-			sendBlinkMsg();
-			_blinks++;
+//			sendBlinkMsg();
+//			_blinks++;
 			enableRxd();
 		} else {
 			WARN_ISR("WARN unexpected frame type %d", ft);
@@ -381,7 +390,6 @@ void DWM1000_Anchor::FSM(const dwt_callback_data_t* signal) {
 		enableRxd();
 	} else if (signal->event == DWT_SIG_TX_DONE) {
 		dwt_write32bitreg(SYS_STATUS_ID, SYS_STATUS_ALL_TX); // Clear TX event bit
-//		enableRxd();
 	} else {
 		WARN_ISR("WARN unhandled event %d", signal->event);
 		enableRxd();
@@ -389,16 +397,7 @@ void DWM1000_Anchor::FSM(const dwt_callback_data_t* signal) {
 	_interruptDelay = Sys::micros() - _interruptStart;
 }
 
-//_________________________________________________ IRQ handler
-void DWM1000_Anchor::rxcallback(const dwt_callback_data_t* signal) {
-	_anchor->_interrupts++;
-	_anchor->FSM(signal);
-}
 
-void DWM1000_Anchor::txcallback(const dwt_callback_data_t* signal) {
-	_anchor->_interrupts++;
-	_anchor->FSM(signal);
-}
 
 //===================================================================================
 

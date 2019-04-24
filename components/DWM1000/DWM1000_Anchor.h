@@ -26,11 +26,8 @@ class DWM1000_Anchor: public Actor, public DWM1000 {
 		uint32_t _errs;
 		uint32_t _missed;
 		uint32_t _timeouts;
-
 		uint32_t _interruptDelay;
-
 		uint8_t _lastSequence;
-
 		PollMsg _pollMsg;
 		RespMsg _respMsg;
 		FinalMsg _finalMsg;
@@ -39,8 +36,6 @@ class DWM1000_Anchor: public Actor, public DWM1000 {
 		std::string _panAddress;
 		bool _hasIrqEvent;
 		float _distance;
-//   uint32_t _distanceInCm;
-//    uint8_t _blinkSequence;
 		typedef enum {
 			RCV_ANY = H("RCV_ANY"),
 			RCV_POLL = H("RCV_POLL"),
@@ -50,6 +45,7 @@ class DWM1000_Anchor: public Actor, public DWM1000 {
 		Label _blinkTimer;
 		bool _blinkTimerExpired;
 		ActorRef& _publisher;
+		DigitalIn& _irq;
 
 	public:
 		uint64_t _interruptStart;
@@ -72,7 +68,7 @@ class DWM1000_Anchor: public Actor, public DWM1000 {
 		static void txcallback(const dwt_callback_data_t* event);
 
 		void FSM(const dwt_callback_data_t* signal);
-		void onDWEvent(const dwt_callback_data_t* event);
+//		void onDWEvent(const dwt_callback_data_t* event);
 		FrameType readMsg(const dwt_callback_data_t* signal);
 		void sendBlinkMsg();
 		void handleFinalMsg();
