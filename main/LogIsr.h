@@ -27,14 +27,14 @@ class LogIsr: public Actor {
 		Receive& createReceive();
 };
 
-#define INFO_ISR(fmt, ...)   LogIsr::log( __FILE__, __LINE__,  fmt, ##__VA_ARGS__);
-#define ERROR_ISR(fmt, ...) LogIsr::log( __FILE__, __LINE__,  fmt, ##__VA_ARGS__);
-#define WARN_ISR(fmt, ...)  LogIsr::log( __FILE__, __LINE__,  fmt, ##__VA_ARGS__);
-#define FATAL_ISR(fmt, ...) LogIsr.log( __FILE__, __LINE__,  fmt, ##__VA_ARGS__);
+#define INFO_ISR(fmt, ...)   LogIsr::log( __SHORT_FILE__, __LINE__,  fmt, ##__VA_ARGS__);
+#define ERROR_ISR(fmt, ...) LogIsr::log( __SHORT_FILE__, __LINE__,  fmt, ##__VA_ARGS__);
+#define WARN_ISR(fmt, ...)  LogIsr::log( __SHORT_FILE__, __LINE__,  fmt, ##__VA_ARGS__);
+#define FATAL_ISR(fmt, ...) LogIsr.log( __SHORT_FILE__, __LINE__,  fmt, ##__VA_ARGS__);
 
 #define DEBUG_ISR(fmt, ...)                                                        \
-	if (LogIsr::_debug) LogIsr::log( __FILE__, __LINE__,  fmt, ##__VA_ARGS__);
+	if (LogIsr::_debug) LogIsr::log( __SHORT_FILE__, __LINE__,  fmt, ##__VA_ARGS__);
 #define TRACE_ISR(fmt, ...)                                                        \
-	if (LogIsr::_debug) LogIsr::log( __FILE__, __LINE__,  fmt, ##__VA_ARGS__);
+	if (LogIsr::_debug) LogIsr::log( __SHORT_FILE__, __LINE__,  fmt, ##__VA_ARGS__);
 
 #endif /* MAIN_LOGISR_H_ */

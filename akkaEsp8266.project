@@ -1,5 +1,10 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <CodeLite_Project Name="akkaEsp8266" Version="10.0.0" InternalType="Console">
+  <Plugins>
+    <Plugin Name="qmake">
+      <![CDATA[00010001N0005Debug000000000000]]>
+    </Plugin>
+  </Plugins>
   <File Name="components/DWM1000/spi_register.h"/>
   <File Name="components/DWM1000/deca_version.h"/>
   <File Name="components/DWM1000/deca_types.h"/>
@@ -107,11 +112,6 @@
     <VirtualDirectory Name="DWM1000"/>
     <VirtualDirectory Name="Common"/>
   </VirtualDirectory>
-  <Plugins>
-    <Plugin Name="qmake">
-      <![CDATA[00010001N0005Debug000000000000]]>
-    </Plugin>
-  </Plugins>
   <VirtualDirectory Name="main">
     <File Name="main/LPS.h"/>
     <File Name="main/LPS.cpp"/>
@@ -126,9 +126,7 @@
     <File Name="main/Hardware_ESP8266.cpp"/>
   </VirtualDirectory>
   <Reconciliation>
-    <Regexes>
-      <Regex>src|*.*</Regex>
-    </Regexes>
+    <Regexes/>
     <Excludepaths>
       <Path>build/</Path>
     </Excludepaths>
