@@ -19,7 +19,7 @@ void LogIsr::log(const char* str) {
 void LogIsr::log(const char* file, uint32_t line, const char* fmt, ...) {
 	if (_me == 0) return;
 	int offset =
-			snprintf(_me->_strBuffer, sizeof(_me->_strBuffer) - 1, " >> %s:%d ", file, line);
+			snprintf(_me->_strBuffer, sizeof(_me->_strBuffer) - 1, "ISR >> %s:%d ", file, line);
 	va_list ap;
 	va_start(ap, fmt);
 	int n = vsnprintf(&_me->_strBuffer[offset], sizeof(_me->_strBuffer) - offset
@@ -47,7 +47,7 @@ Receive& LogIsr::createReceive() {
 	.match(MsgClass::Properties(), [this](Msg& msg) {
 	})
 
-	.match(LABEL("logTimer"), [this](Msg& msg) {
+	.match(MsgClass("logTimer"), [this](Msg& msg) {
 		std::string line;
 		while( _buffer.hasData() ) {
 			char ch=_buffer.read();

@@ -13,12 +13,11 @@
 #include <DWM1000_Message.h>
 #include <DWM1000.h>
 #include <LogIsr.h>
+#include <Register.h>
 
 class DWM1000_Anchor: public Actor, public DWM1000 {
-		static DWM1000_Anchor* _anchor;
 
 		uint32_t _count;
-		uint32_t _interrupts;
 		uint32_t _polls;
 		uint32_t _finals;
 		uint32_t _blinks;
@@ -48,7 +47,10 @@ class DWM1000_Anchor: public Actor, public DWM1000 {
 		DigitalIn& _irq;
 
 	public:
+		static DWM1000_Anchor* _anchor;
 		uint64_t _interruptStart;
+		uint32_t _interrupts;
+
 		DWM1000_Anchor(ActorRef& publisher,Spi& spi, DigitalIn& irq, DigitalOut& reset,
 				uint16_t shortAddress, uint8_t longAddress[6]);
 		~DWM1000_Anchor();
@@ -74,7 +76,6 @@ class DWM1000_Anchor: public Actor, public DWM1000 {
 		void handleFinalMsg();
 		void enableRxd();
 		void showRegs();
-		void diag(const char* );
 };
 
 #endif /* DWM1000_Anchor_Tag_H_ */

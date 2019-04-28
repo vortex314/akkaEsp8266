@@ -88,6 +88,38 @@ void DWM1000::resetChip()
     _reset.write(1);
 }
 
+Register reg_sys_status("SYS_STATUS","ICRBP HSRBP AFFREJ TXBERR HPDWARN RXSFDTO CLKPLL_LL RFPLL_LL "
+		"SLP2INIT GPIOIRQ RXPTO RXOVRR F LDEERR RXRFTO RXRFSL RXFCE RXFCG "
+		"RXDFR RXPHE RXPHD LDEDONE RXSFDD RXPRD TXFRS TXPHS TXPRS TXFRB AAT "
+		"ESYNCR CPLOCK IRQSD");
+Register ref_any("ANY","31 30 29 28 27 26 25 24 23 22 21 20 19 18 17 16 15 14 13 12 11 10 9 8 7 6 5 4 3 2 1 0");
+
+Register reg_sys_state("SYS_STATE","31 30 29 28 27 26 25 24 23 22 21 20 19 18 17 16 15 14 13 12 11 10 9 8 7 6 5 4 3 2 1 0");
+Register reg_sys_state2("SYS_STATE","PMSC_STATE:23:16:INIT,IDLE,TX_WAIT,RX_WAIT,TX,RX "
+		"RX_STATE:15:8:IDLE,START_ANALOG,2,3,RX_READY,PREAMBLE_FIND,PREAMBLE_TO,SFD_FOUND,CONFIGURE_PHR_RX,PHR_RX_START,DATA_STATE_READY,DATA_RX_SEQ,CONFIG_DATA,PHR_NOT_OK,LAST_SYMBOL,WAIT_RSD_DONE,RSD_OK,RSD_NOT_OK,RECONFIG_110,WAIT110_PHR "
+		"TX_STATE:7:0:IDLE,PREAMBLE,SFD,PHR,SDE,DATA,RSP_DATA");
+Register reg_sys_state3("SYS_STATE","+ + + + + + + filler + + + + + + + PMSC_STATE + + + + + + + RX_STATE + + + + + + + TX_STATE");
+
+Register reg_sys_mask("SYS_MASK","- - MAFFREJ MTXBERR MHPDWARN MRXSFDTO MPLLHILO MRFPLLLL MSLP2INIT MGPIOIRQ MRXPTO "
+"MRXOVRR - MLDEERR MRXRFTO MRXRFSL MRXFCE MRXFCG MRXDFR MRXPHE MRXPHD MLDEDON "
+"MRXSFDD MRXPRD MTXFRS MTXPHS MTXPRS MTXFRB MAAT MESYNCR MCPLOCK -");
+
+void DWM1000::status(){
+		uint32_t sys_mask, sys_status, sys_state;
+
+		sys_mask = dwt_read32bitreg(SYS_MASK_ID);
+		sys_status = dwt_read32bitreg(SYS_STATUS_ID);
+		sys_state = dwt_read32bitreg(SYS_STATE_ID);
+		reg_sys_status.value(sys_status);
+		reg_sys_status.show();
+		reg_sys_mask.value(sys_mask);
+		reg_sys_mask.show();
+		reg_sys_state3.value(sys_state);
+		reg_sys_state3.show();
+		INFO("SYS_MASK : %X SYS_STATUS : %X SYS_STATE: %X IRQ : %d", sys_mask, sys_status, sys_state, _irq
+				.read());
+}
+
 
 
 //_________________________________________________ SETUP  DWM1000

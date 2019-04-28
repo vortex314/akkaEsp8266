@@ -49,7 +49,7 @@ void Mqtt::preStart() {
 	_wifiConnected = false;
 
 	_timerYield =
-			timers().startPeriodicTimer("YIELD_TIMER", Msg("yieldTimer"), 100000);
+			timers().startPeriodicTimer("YIELD_TIMER", Msg("yieldTimer"), 5000);
 
 	eb.subscribe(self(), MessageClassifier(_wifi, Wifi::Disconnected));
 	eb.subscribe(self(), MessageClassifier(_wifi, Wifi::Connected));
@@ -90,7 +90,7 @@ Receive& Mqtt::createReceive() {
 
 	.match(Wifi::Disconnected, [this](Msg& msg) {
 		_wifiConnected = false;
-		mqttDisconnect();
+		if ( _mqttConnected )	mqttDisconnect();
 	})
 
 	.match(MsgClass::Properties(), [this](Msg& msg) {
@@ -151,7 +151,7 @@ void Mqtt::mqttPublish(std::string& topic, std::string& msg) {
 			mqttDisconnect();
 			return;
 		}
-		_ret = mqtt_yield(&_client, 10);
+		_ret = mqtt_yield(&_client, 5);
 		if (_ret == MQTT_DISCONNECTED ) {
 			WARN(" mqtt_yield failed : %d ", _ret);
 			mqttDisconnect();
@@ -178,7 +178,7 @@ bool Mqtt::mqttConnect() {
 	INFO("connecting to MQTT server %s:%d ... ", MQTT_HOST, MQTT_PORT);
 	_ret = mqtt_network_connect(&_network, MQTT_HOST, MQTT_PORT);
 	if (_ret) {
-		INFO("connect error: %d", _ret);
+		INFO("matt connect error: %d", _ret);
 		return false;
 	}
 	mqtt_client_new(&_client, &_network, 3000, _mqtt_buf, 1024, _mqtt_readbuf, 1024);
@@ -194,17 +194,17 @@ bool Mqtt::mqttConnect() {
 	_data.cleansession = 0;
 	_data.will.topicName.cstring = (char*) _topicAlive.c_str();
 	_data.will.message.cstring = (char*) "false";
-	INFO("Send MQTT connect ... ");
 	_ret = mqtt_connect(&_client, &_data);
 	if (_ret) {
 		eb.publish(Msg(Mqtt::Disconnected).src(self().id()));
-		INFO("error: %d", _ret);
+		INFO("mqtt connect error: %d", _ret);
 		mqtt_network_disconnect(&_network);
 		return false;
 	};
 	mqttSubscribe(_topicsForDevice.c_str());
 	eb.publish(Msg(Mqtt::Connected).src(self().id()));
 	_mqttConnected = true;
+	INFO("mqtt connect success.");
 	return true;
 }
 

@@ -11,6 +11,7 @@
 #include <Log.h>
 #include <Hardware.h>
 #include <DWM1000_Message.h>
+#include <Register.h>
 
 extern "C" {
 
@@ -126,6 +127,7 @@ public:
     uint8_t sequence() {
         return _sequence;
     }
+    void status();
 
 
 private:

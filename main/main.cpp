@@ -51,7 +51,7 @@ void vAssertCalled( unsigned long ulLine, const char * const pcFileName ) {
 
 extern "C" void vApplicationMallocFailedHook() {
 	WARN(" malloc failed ! ");
-	exit(-1);
+	while(1);
 }
 
 /*
@@ -81,12 +81,12 @@ void akkaMainTask(void* pvParameter) {
 }*/
 #include <espressif/esp_system.h>
 extern "C" void user_init(void) {
-	uart_set_baud(0, 921600);
+	uart_set_baud(0, 115200);
 	sdk_system_update_cpu_freq(SYS_CPU_160MHZ); // need for speed, DWM1000 doesn't wait !
 	Sys::init();
 
 	printf("Starting Akka on %s heap : %d ", Sys::getProcessor(), Sys::getFreeHeap());
-	static MessageDispatcher defaultDispatcher( 1,  1024,tskIDLE_PRIORITY + 1);
+	static MessageDispatcher defaultDispatcher( 2,  768,tskIDLE_PRIORITY + 1);
 	static ActorSystem actorSystem(Sys::hostname(), defaultDispatcher);
 
 //	actorSystem.actorOf<Sender>("sender");
@@ -94,7 +94,7 @@ extern "C" void user_init(void) {
 	ActorRef& mqtt = actorSystem.actorOf<Mqtt>("mqtt",wifi);
 	ActorRef& publisher = actorSystem.actorOf<Publisher>("publisher",mqtt);
 	ActorRef& bridge = actorSystem.actorOf<Bridge>("bridge",mqtt);
-	ActorRef& system = actorSystem.actorOf<System>("system",mqtt);
+	ActorRef& system = actorSystem.actorOf<System>("system",mqtt,wifi);
 	actorSystem.actorOf<LogIsr>("logIsr");
 
     std::string role;

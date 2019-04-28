@@ -67,8 +67,7 @@ class Anchor {
 
 class DWM1000_Tag: public Actor, public DWM1000 {
 		uint32_t _count;
-		static DWM1000_Tag* _tag;
-		uint32_t _interrupts;
+
 		uint32_t _polls;
 		uint32_t _resps;
 		uint32_t _blinks;
@@ -98,6 +97,8 @@ class DWM1000_Tag: public Actor, public DWM1000 {
 		DigitalIn& _irq;
 
 	public:
+		static DWM1000_Tag* _tag;
+		uint32_t _interrupts;
 		uint64_t _interruptStart;
 		DWM1000_Tag(ActorRef& publisher,Spi& spi, DigitalIn& irq, DigitalOut& reset,
 				uint16_t shortAddress, uint8_t longAddress[6]);

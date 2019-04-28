@@ -4,18 +4,19 @@
 #include <Akka.h>
 #include <Hardware.h>
 #include <Mqtt.h>
+#include <Wifi.h>
 
 class System : public Actor {
-		Label _ledTimer;
-		Label _reportTimer;
+		Label _led1Timer;
+		Label _led2Timer;
 		DigitalOut& _led1;
 		DigitalOut& _led2;
 
-		uint32_t _interval = 100;
 		ActorRef& _mqtt;
+		ActorRef& _wifi;
 
 	public:
-		System(ActorRef& mqtt);
+		System(ActorRef& mqtt,ActorRef& wifi);
 		~System();
 		void preStart();
 		Receive& createReceive();

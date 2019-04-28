@@ -75,19 +75,19 @@ static uint64 get_tx_timestamp_u64(void);
 static uint64 get_rx_timestamp_u64(void);
 static void final_msg_set_ts(uint8 *ts_field, uint64 ts);
 
+uint32_t lastStatus = 0;
+uint32_t lastEvent = 0;
 //_________________________________________________  IRQ Handler
 void tagInterruptHandler(void* obj) {
+	DWM1000_Tag::_tag->_interruptStart = Sys::micros();
+	DWM1000_Tag::_tag->_interrupts++;
 	dwt_isr();
 }
 void DWM1000_Tag::rxcallback(const dwt_callback_data_t* signal) {
-	_tag->_interruptStart = Sys::micros();
-	_tag->_interrupts++;
 	_tag->FSM(signal);
 }
 
 void DWM1000_Tag::txcallback(const dwt_callback_data_t* signal) {
-	_tag->_interruptStart = Sys::micros();
-	_tag->_interrupts++;
 	_tag->FSM(signal);
 }
 //__________________________________________________
@@ -133,6 +133,11 @@ void DWM1000_Tag::preStart() {
 
 }
 
+Register reg_sys_status2("SYS_STATUS", "ICRBP HSRBP AFFREJ TXBERR HPDWARN RXSFDTO CLKPLL_LL RFPLL_LL "
+		"SLP2INIT GPIOIRQ RXPTO RXOVRR F LDEERR RXRFTO RXRFSL RXFCE RXFCG "
+		"RXDFR RXPHE RXPHD LDEDONE RXSFDD RXPRD TXFRS TXPHS TXPRS TXFRB AAT "
+		"ESYNCR CPLOCK IRQSD");
+
 Receive& DWM1000_Tag::createReceive() {
 	return receiveBuilder().match(MsgClass::ReceiveTimeout(), [this](Msg& msg) {
 		INFO(" No more messages since some time ");
@@ -142,19 +147,30 @@ Receive& DWM1000_Tag::createReceive() {
 		_pollTimerExpired=true;
 	})
 
-	.match(LABEL("logTimer"), [this](Msg& msg) {
+	.match(LABEL("logTimer"), [this](Msg& timerMsg) {
 		INFO("interr: %d TO:%d blink: %d poll: %d resp: %d final:%d anchors: %d delay:%d usec", _interrupts, _timeouts, _blinks, _polls, _resps, _finals, anchorsCount(), _interruptDelay);
-		Msg p(MsgClass::Properties());
-		std::string listAnchor;
-		listAnchors(listAnchor);
-		Msg& props=replyBuilder(p)("anchors",listAnchor);
-		_publisher.tell(props,self());
+		Msg msg("PropertiesReply");
+		for(int i=0;i< MAX_ANCHORS;i++) {
+			if ( anchors[i]._address!=0) {
+				std::string topic;
+				string_format(topic,"anchors/%d/x",anchors[i]._address,anchors[i]._x);
+				msg(topic.c_str(),anchors[i]._x);
+				string_format(topic,"anchors/%d/y",anchors[i]._address,anchors[i]._y);
+				msg(topic.c_str(),anchors[i]._y);
+				string_format(topic,"anchors/%d/distance",anchors[i]._address,anchors[i]._distance);
+				msg(topic.c_str(),anchors[i]._distance);
+			}
+		}
+		_publisher.tell(msg,self());
 	})
 
 	.match(LABEL("checkTimer"), [this](Msg& msg) {
 		static uint32_t oldInterrupts = 0;
 		if (oldInterrupts == _interrupts) {
-			diag(" missing interrupts ");
+			INFO(" missing interrupts , lastEvent : %d lastStatus : 0x%X",lastEvent,lastStatus);
+			reg_sys_status2.value(lastStatus);
+			reg_sys_status2.show();
+			status();
 			enableRxd();
 		}
 		oldInterrupts = _interrupts;
@@ -169,8 +185,6 @@ Receive& DWM1000_Tag::createReceive() {
 		listAnchors(listAnchor);
 		Msg& reply =
 		replyBuilder(msg)
-		("distance",_distance)
-		("anchors",listAnchor)
 		("role", "T")
 		("interrupts", _interrupts)
 		("polls", _polls)
@@ -187,7 +201,8 @@ Receive& DWM1000_Tag::createReceive() {
 
 void DWM1000_Tag::init() {
 	dwt_setcallbacks(txcallback, rxcallback);
-	dwt_setinterrupt(DWT_INT_RFCG | DWT_INT_RFCE | DWT_INT_RFTO | DWT_INT_TFRS , 1);
+	dwt_setinterrupt(DWT_INT_RFCG | DWT_INT_RFCE | DWT_INT_RFTO | DWT_INT_TFRS
+			| DWT_INT_SFDT | DWT_INT_RPHE | DWT_INT_RFSL, 1);
 
 	/*	dwt_setrxaftertxdelay(POLL_TX_TO_RESP_RX_DLY_UUS);
 	 dwt_setdblrxbuffmode(false);
@@ -252,7 +267,7 @@ int DWM1000_Tag::sendFinalMsg() {
 	dwt_writetxdata(sizeof(_finalMsg), _finalMsg.buffer, 0);
 	dwt_writetxfctrl(sizeof(_finalMsg), 0);
 
-	return dwt_starttx(DWT_START_TX_DELAYED) ;
+	return dwt_starttx(DWT_START_TX_DELAYED);
 }
 
 void DWM1000_Tag::handleBlinkMsg() {
@@ -360,30 +375,34 @@ void DWM1000_Tag::enableRxd() {
 //	dwt_setautorxreenable(true);
 	dwt_write32bitreg(SYS_STATUS_ID, SYS_STATUS_ALL_RX_GOOD | SYS_STATUS_ALL_RX_ERR | SYS_STATUS_ALL_TX | SYS_STATUS_ALL_DBLBUFF);
 	dwt_setrxtimeout(60000); // 60 msec ?
-	if ( dwt_rxenable(0) < 0 ) WARN_ISR("WARN dwt_rxenable() failed ");
+	if (dwt_rxenable(0) < 0) WARN_ISR("WARN dwt_rxenable() failed ");
 }
 
 void DWM1000_Tag::FSM(const dwt_callback_data_t* signal) {
-
+	lastStatus = signal->status;
+	lastEvent = signal->event;
 	if (signal->event == DWT_SIG_RX_OKAY) {
-		dwt_write32bitreg(SYS_STATUS_ID, SYS_STATUS_ALL_RX_GOOD );
+		dwt_write32bitreg(SYS_STATUS_ID, SYS_STATUS_ALL_RX_GOOD);
 		FrameType ft = readMsg(signal);
 		if (ft == FT_BLINK) {
 			handleBlinkMsg();
 		} else if (ft == FT_RESP && _dwmMsg.getDst() == _shortAddress
 				&& _dwmMsg.getSrc() == _currentAnchor->_address) {
 			createFinalMsg(_finalMsg, _respMsg);
-			if ( sendFinalMsg() <0 ){
+			if (sendFinalMsg() < 0) {
 				WARN_ISR("WARN sendFinalMsg failed");
 			}
 		} else {
 			WARN_ISR("WARN unexpected frame type %d", ft);
 		}
 		dwt_rxenable(0);
-	} else if (signal->event == DWT_SIG_RX_TIMEOUT) {
-		dwt_write32bitreg(SYS_STATUS_ID,  SYS_STATUS_ALL_RX_ERR );
+	} else if (signal->event == DWT_SIG_RX_TIMEOUT
+			|| signal->event == DWT_SIG_RX_SFDTIMEOUT
+			|| signal->event == DWT_SIG_RX_PHR_ERROR
+			|| signal->event == DWT_SIG_RX_ERROR
+			|| signal->event == DWT_SIG_RX_SYNCLOSS) {
+		dwt_write32bitreg(SYS_STATUS_ID, SYS_STATUS_ALL_RX_ERR);
 		_timeouts++;
-//		dwt_write32bitreg(SYS_STATUS_ID, SYS_STATUS_RXRFTO); // Clear RX timeout event bit
 		if (_pollTimerExpired) {
 			_pollTimerExpired = false;
 			if (anchorsCount() > 0) {
@@ -400,6 +419,7 @@ void DWM1000_Tag::FSM(const dwt_callback_data_t* signal) {
 		// apparently irq cannot be suppressed
 		dwt_write32bitreg(SYS_STATUS_ID, SYS_STATUS_ALL_TX); // Clear TX event bit
 	} else {
+		dwt_write32bitreg(SYS_STATUS_ID, SYS_STATUS_ALL_RX_ERR);
 		WARN_ISR("WARN unhandled event %d", signal->event);
 	}
 	_interruptDelay = Sys::micros() - _interruptStart;
@@ -563,7 +583,7 @@ static void final_msg_set_ts(uint8 *ts_field, uint64 ts) {
  *    is arbitrary but chosen large enough to make sure that there is enough time to receive the complete final frame sent by the responder at the
  *    110k data rate used (around 3.5 ms).
  * 6. In a real application, for optimum performance within regulatory limits, it may be necessary to set TX pulse bandwidth and TX power, (using
- *    the dwt_configuretxrf API call) to per device calibrated values saved in the target system or the DW1000 OTP memory.
+ *    the dwt_configuretxrf API call) to per device calibrated values saved in the target system or the lastEvDW1000 OTP memory.
  * 7. We use polled mode of operation here to keep the example as simple as possible but all status events can be used to generate interrupts. Please
  *    refer to DW1000 User Manual for more details on "interrupts". It is also to be noted that STATUS register is 5 bytes long but, as the event we
  *    use are all in the first bytes of the register, we can use the simple dwt_read32bitreg() API call to access it instead of reading the whole 5
