@@ -16,6 +16,9 @@ class System : public Actor {
 		ActorRef& _wifi;
 
 	public:
+		static MsgClass LedPulseOn;
+		static MsgClass LedPulseOff;
+
 		System(ActorRef& mqtt,ActorRef& wifi);
 		~System();
 		void preStart();

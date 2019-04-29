@@ -36,7 +36,7 @@ class Mqtt : public Actor {
 		bool _wifiConnected;
 		bool _mqttConnected;
 //		bool _receiving;
-		StaticJsonBuffer<2000> _jsonBuffer;
+		StaticJsonDocument<2000> _jsonBuffer;
 		std::string _clientId;
 		std::string _address;
 		Label _timerYield;

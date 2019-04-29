@@ -53,7 +53,6 @@ void Mqtt::preStart() {
 
 	eb.subscribe(self(), MessageClassifier(_wifi, Wifi::Disconnected));
 	eb.subscribe(self(), MessageClassifier(_wifi, Wifi::Connected));
-	//   xTaskCreate(&mqttYieldTask, "mqttYieldTask", 500, NULL, tskIDLE_PRIORITY + 1, NULL);
 }
 
 Receive& Mqtt::createReceive() {
@@ -73,7 +72,7 @@ Receive& Mqtt::createReceive() {
 
 	.match(MsgClass("yieldTimer"), [this](Msg& msg) {
 		if(_mqttConnected) {
-			int ret = mqtt_yield(&_client, 10);
+			int ret = mqtt_yield(&_client, 0);
 			if(ret == MQTT_DISCONNECTED) {
 				mqttDisconnect();
 				mqttConnect();
@@ -138,6 +137,7 @@ void Mqtt::topic_received_cb(mqtt_message_data_t* md) {
 
 void Mqtt::mqttPublish(std::string& topic, std::string& msg) {
 	if (_mqttConnected) {
+		uint64_t start=Sys::millis();
 		DEBUG(" MQTT TXD : %s = %s", topic.c_str(), msg.c_str());
 		mqtt_message_t message;
 		message.payload = (void*) msg.data();
@@ -151,11 +151,12 @@ void Mqtt::mqttPublish(std::string& topic, std::string& msg) {
 			mqttDisconnect();
 			return;
 		}
-		_ret = mqtt_yield(&_client, 5);
+		_ret = mqtt_yield(&_client,0);
 		if (_ret == MQTT_DISCONNECTED ) {
 			WARN(" mqtt_yield failed : %d ", _ret);
 			mqttDisconnect();
 		}
+//		INFO(" delay MQTT publish %s %d ",topic.c_str(),(uint32_t)(Sys::millis()-start));
 	} else {
 //		WARN(" cannot publish : disconnected. ");
 	}

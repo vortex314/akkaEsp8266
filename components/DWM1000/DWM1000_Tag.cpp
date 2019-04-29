@@ -75,8 +75,8 @@ static uint64 get_tx_timestamp_u64(void);
 static uint64 get_rx_timestamp_u64(void);
 static void final_msg_set_ts(uint8 *ts_field, uint64 ts);
 
-uint32_t lastStatus = 0;
-uint32_t lastEvent = 0;
+static uint32_t lastStatus = 0;
+static uint32_t lastEvent = 0;
 //_________________________________________________  IRQ Handler
 void tagInterruptHandler(void* obj) {
 	DWM1000_Tag::_tag->_interruptStart = Sys::micros();
@@ -133,7 +133,7 @@ void DWM1000_Tag::preStart() {
 
 }
 
-Register reg_sys_status2("SYS_STATUS", "ICRBP HSRBP AFFREJ TXBERR HPDWARN RXSFDTO CLKPLL_LL RFPLL_LL "
+static Register reg_sys_status2("SYS_STATUS", "ICRBP HSRBP AFFREJ TXBERR HPDWARN RXSFDTO CLKPLL_LL RFPLL_LL "
 		"SLP2INIT GPIOIRQ RXPTO RXOVRR F LDEERR RXRFTO RXRFSL RXFCE RXFCG "
 		"RXDFR RXPHE RXPHD LDEDONE RXSFDD RXPRD TXFRS TXPHS TXPRS TXFRB AAT "
 		"ESYNCR CPLOCK IRQSD");
@@ -185,14 +185,12 @@ Receive& DWM1000_Tag::createReceive() {
 		listAnchors(listAnchor);
 		Msg& reply =
 		replyBuilder(msg)
-		("role", "T")
 		("interrupts", _interrupts)
 		("polls", _polls)
 		("responses", _resps)
 		("finals", _finals)
 		("blinks", _blinks)
 		("interruptDelay", _interruptDelay)
-		("count", _count)
 		("errs", _errs)
 		("missed", _missed);
 		sender().tell(reply,self());

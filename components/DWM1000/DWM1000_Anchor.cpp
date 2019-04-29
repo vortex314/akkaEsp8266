@@ -9,6 +9,7 @@
 #include <Log.h>
 #include <decaSpi.h>
 #include <Config.h>
+#include <System.h>
 
 extern "C" {
 
@@ -71,7 +72,8 @@ static uint64 get_tx_timestamp_u64(void);
 static uint64 get_rx_timestamp_u64(void);
 static void final_msg_get_ts(const uint8 *ts_field, uint32 *ts);
 
-static const char* role = "A";
+static uint32_t lastStatus = 0;
+static uint32_t lastEvent = 0;
 
 std::string strLogAnchor;
 
@@ -160,6 +162,11 @@ void DWM1000_Anchor::preStart() {
 
 }
 
+static Register reg_sys_status2("SYS_STATUS", "ICRBP HSRBP AFFREJ TXBERR HPDWARN RXSFDTO CLKPLL_LL RFPLL_LL "
+		"SLP2INIT GPIOIRQ RXPTO RXOVRR F LDEERR RXRFTO RXRFSL RXFCE RXFCG "
+		"RXDFR RXPHE RXPHD LDEDONE RXSFDD RXPRD TXFRS TXPHS TXPRS TXFRB AAT "
+		"ESYNCR CPLOCK IRQSD");
+
 Receive& DWM1000_Anchor::createReceive() {
 	return receiveBuilder().match(MsgClass::ReceiveTimeout(), [this](Msg& msg) {
 	})
@@ -173,6 +180,11 @@ Receive& DWM1000_Anchor::createReceive() {
 
 	.match(MsgClass(LABEL("blinkTimer")), [this](Msg& msg) {
 		_blinkTimerExpired=true;
+		static uint32_t _oldPolls=0;
+		if ( _polls > _oldPolls) {
+			Msg msg(System::LedPulseOn);
+			eb.publish(msg);
+		}
 	})
 
 	.match(LABEL("checkTimer"), [this](Msg& msg) {
@@ -180,6 +192,8 @@ Receive& DWM1000_Anchor::createReceive() {
 		static uint32_t oldPolls=0;
 		if ( _polls == oldPolls || _interrupts==oldInterrupts) {
 			INFO(" missing interrupts or polls ");
+			reg_sys_status2.value(lastStatus);
+			reg_sys_status2.show();
 			status();
 		}
 		oldInterrupts=_interrupts;
@@ -188,7 +202,6 @@ Receive& DWM1000_Anchor::createReceive() {
 
 	.match(MsgClass::Properties(), [this](Msg& msg) {
 		sender().tell(replyBuilder(msg)
-				("role", role)
 				("interrupts", _interrupts)
 				("polls", _polls)
 				("responses", _resps)
@@ -337,6 +350,8 @@ void DWM1000_Anchor::enableRxd() {
 }
 
 void DWM1000_Anchor::FSM(const dwt_callback_data_t* signal) {
+	lastStatus = signal->status;
+	lastEvent = signal->event;
 	if (signal->event == DWT_SIG_RX_OKAY) {
 		FrameType ft = readMsg(signal);
 		if (ft == FT_POLL && _dwmMsg.getDst() == _shortAddress) {

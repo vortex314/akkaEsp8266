@@ -81,7 +81,7 @@ void akkaMainTask(void* pvParameter) {
 }*/
 #include <espressif/esp_system.h>
 extern "C" void user_init(void) {
-	uart_set_baud(0, 115200);
+	uart_set_baud(0, 921600);
 	sdk_system_update_cpu_freq(SYS_CPU_160MHZ); // need for speed, DWM1000 doesn't wait !
 	Sys::init();
 
