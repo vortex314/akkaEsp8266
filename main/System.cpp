@@ -16,6 +16,7 @@ System::~System() {
 void System::preStart() {
 	_led1.init();
 	_led2.init();
+	_led2.write(1);
 	timers().startPeriodicTimer("REPORT_TIMER", Msg("reportTimer"), 10000);
 	_led1Timer =
 			timers().startPeriodicTimer("LED1_TIMER", Msg("led1Timer"), 100);
@@ -23,7 +24,7 @@ void System::preStart() {
 
 	eb.subscribe(self(), MessageClassifier(_mqtt, Mqtt::Disconnected));
 	eb.subscribe(self(), MessageClassifier(_mqtt, Mqtt::Connected));
-	eb.subscribe(self(), MessageClassifier(_wifi, Wifi::Connected));
+	eb.subscribe(self(), MessageClassifier(0, LedPulseOn.id()));
 	eb.subscribe(self(), MessageClassifier(_wifi, Wifi::Disconnected));
 
 }
@@ -38,13 +39,12 @@ Receive& System::createReceive() {
 	})
 
 	.match(LedPulseOn, [this](Msg& msg) {
-		INFO("%s",LedPulseOn.label());
 		timers().startSingleTimer("LedPulseOff",Msg("LedPulseOff"),100);
-		_led2.write( 1);
+		_led2.write(0); // LED ON
 	})
 
 	.match(LedPulseOff, [this](Msg& msg) {
-		_led2.write(0);
+		_led2.write(1); // LED OFF
 	})
 
 	.match(LABEL("reportTimer"), [this](Msg& msg) {

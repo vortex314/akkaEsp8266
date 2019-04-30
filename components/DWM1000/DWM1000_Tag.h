@@ -14,7 +14,7 @@
 #include <DWM1000_Message.h>
 #include <LogIsr.h>
 
-#define ANCHOR_EXPIRE_TIME 5000
+#define ANCHOR_EXPIRE_TIME 30000
 class Anchor {
 	public:
 		uint16_t _address;

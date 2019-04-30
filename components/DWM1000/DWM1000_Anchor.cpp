@@ -185,6 +185,7 @@ Receive& DWM1000_Anchor::createReceive() {
 			Msg msg(System::LedPulseOn);
 			eb.publish(msg);
 		}
+		_oldPolls=_polls;
 	})
 
 	.match(LABEL("checkTimer"), [this](Msg& msg) {

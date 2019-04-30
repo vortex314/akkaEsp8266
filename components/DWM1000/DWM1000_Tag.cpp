@@ -8,6 +8,7 @@
 #include <DWM1000_Tag.h>
 #include <Log.h>
 #include <decaSpi.h>
+#include <System.h>
 
 extern "C" {
 #include "deca_device_api.h"
@@ -162,6 +163,12 @@ Receive& DWM1000_Tag::createReceive() {
 			}
 		}
 		_publisher.tell(msg,self());
+		static uint32_t _oldBlinks=0;
+		if ( _blinks > _oldBlinks) {
+			Msg msg(System::LedPulseOn);
+			eb.publish(msg);
+		}
+		_oldBlinks=_blinks;
 	})
 
 	.match(LABEL("checkTimer"), [this](Msg& msg) {
