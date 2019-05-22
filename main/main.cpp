@@ -100,6 +100,7 @@ extern "C" void user_init(void) {
     std::string role;
     config.setNameSpace("dwm1000");
     config.get("role",role,"N");
+    role="A";
     if ( role.at(0)=='T' ) {
     	ActorRef& tag = actorSystem.actorOf<DWM1000_Tag>("tag",publisher,Spi::create(12,13,14,15),DigitalIn::create(4),DigitalOut::create(5),sdk_system_get_chip_id() & 0xFFFF,(uint8_t*)"ABCDEF");
     } else if ( role.at(0)=='A'  ) {
