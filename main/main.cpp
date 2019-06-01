@@ -18,10 +18,9 @@
 #include <Akka.cpp>
 #include <Native.cpp>
 #include <Echo.cpp>
-#include <Bridge.cpp>
 #include <Mqtt.h>
 #include <Sender.cpp>
-#include <Publisher.cpp>
+#include <Bridge.cpp>
 //#include <ConfigActor.cpp>
 #include <System.h>
 #include <Wifi.h>
@@ -92,21 +91,18 @@ extern "C" void user_init(void) {
 //	actorSystem.actorOf<Sender>("sender");
 	ActorRef& wifi = actorSystem.actorOf<Wifi>("wifi");
 	ActorRef& mqtt = actorSystem.actorOf<Mqtt>("mqtt",wifi);
-	ActorRef& publisher = actorSystem.actorOf<Publisher>("publisher",mqtt);
 	ActorRef& bridge = actorSystem.actorOf<Bridge>("bridge",mqtt);
 	ActorRef& system = actorSystem.actorOf<System>("system",mqtt,wifi);
 	actorSystem.actorOf<LogIsr>("logIsr");
 
-    std::string role;
-    config.setNameSpace("dwm1000");
-    config.get("role",role,"N");
-    role="A";
-    if ( role.at(0)=='T' ) {
-    	ActorRef& tag = actorSystem.actorOf<DWM1000_Tag>("tag",publisher,Spi::create(12,13,14,15),DigitalIn::create(4),DigitalOut::create(5),sdk_system_get_chip_id() & 0xFFFF,(uint8_t*)"ABCDEF");
-    } else if ( role.at(0)=='A'  ) {
-    	ActorRef& anchor = actorSystem.actorOf<DWM1000_Anchor>("anchor",publisher,Spi::create(12,13,14,15),DigitalIn::create(4),DigitalOut::create(5),sdk_system_get_chip_id() & 0xFFFF,(uint8_t*)"GHIJKL");
-    }
-    config.save();
+	std::string role;
+	config.setNameSpace("dwm1000");
+	config.get("role",role,"N");
+	role="A";
+	if ( role.at(0)=='T' ) {
+		ActorRef& tag = actorSystem.actorOf<DWM1000_Tag>("tag",bridge,Spi::create(12,13,14,15),DigitalIn::create(4),DigitalOut::create(5),sdk_system_get_chip_id() & 0xFFFF,(uint8_t*)"ABCDEF");
+	} else if ( role.at(0)=='A'  ) {
+		ActorRef& anchor = actorSystem.actorOf<DWM1000_Anchor>("anchor",bridge,Spi::create(12,13,14,15),DigitalIn::create(4),DigitalOut::create(5),sdk_system_get_chip_id() & 0xFFFF,(uint8_t*)"GHIJKL");
+	}
+	config.save();
 }
-
-
