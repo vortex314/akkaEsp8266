@@ -78,7 +78,7 @@ static uint32_t lastEvent = 0;
 std::string strLogAnchor;
 
 void logAnchor(const char* s, uint32_t state, uint8_t* buffer,
-		uint32_t length) {
+               uint32_t length) {
 	strLogAnchor = ":";
 	for (int i = 0; i < length; i++)
 		strLogAnchor += buffer[i] + ":";
@@ -103,8 +103,8 @@ void DWM1000_Anchor::txcallback(const dwt_callback_data_t* signal) {
 }
 
 DWM1000_Anchor::DWM1000_Anchor(ActorRef& publisher, Spi& spi, DigitalIn& irq,
-		DigitalOut& reset, uint16_t shortAddress, uint8_t longAddress[6])
-		: _publisher(publisher), DWM1000(spi, irq, reset, shortAddress, longAddress), _irq(irq)
+                               DigitalOut& reset, uint16_t shortAddress, uint8_t longAddress[6])
+	: _publisher(publisher), DWM1000(spi, irq, reset, shortAddress, longAddress), _irq(irq)
 //int pin = 5;   // RESET PIN == D1 == GPIO5
 //    Actor(name),
 
@@ -163,9 +163,9 @@ void DWM1000_Anchor::preStart() {
 }
 
 static Register reg_sys_status2("SYS_STATUS", "ICRBP HSRBP AFFREJ TXBERR HPDWARN RXSFDTO CLKPLL_LL RFPLL_LL "
-		"SLP2INIT GPIOIRQ RXPTO RXOVRR F LDEERR RXRFTO RXRFSL RXFCE RXFCG "
-		"RXDFR RXPHE RXPHD LDEDONE RXSFDD RXPRD TXFRS TXPHS TXPRS TXFRB AAT "
-		"ESYNCR CPLOCK IRQSD");
+                                "SLP2INIT GPIOIRQ RXPTO RXOVRR F LDEERR RXRFTO RXRFSL RXFCE RXFCG "
+                                "RXDFR RXPHE RXPHD LDEDONE RXSFDD RXPRD TXFRS TXPHS TXPRS TXFRB AAT "
+                                "ESYNCR CPLOCK IRQSD");
 
 Receive& DWM1000_Anchor::createReceive() {
 	return receiveBuilder().match(MsgClass::ReceiveTimeout(), [this](Msg& msg) {
@@ -203,17 +203,17 @@ Receive& DWM1000_Anchor::createReceive() {
 
 	.match(MsgClass::Properties(), [this](Msg& msg) {
 		sender().tell(replyBuilder(msg)
-				("interrupts", _interrupts)
-				("polls", _polls)
-				("responses", _resps)
-				("finals", _finals)
-				("blinks", _blinks)
-				("interruptDelay", _interruptDelay)
-				("count", _count)
-				("errs", _errs)
-				("distance",_distance)
-				("missed", _missed),
-				self());
+		              ("interrupts", _interrupts)
+		              ("polls", _polls)
+		              ("responses", _resps)
+		              ("finals", _finals)
+		              ("blinks", _blinks)
+		              ("interruptDelay", _interruptDelay)
+		              ("count", _count)
+		              ("errs", _errs)
+		              ("distance",_distance)
+		              ("missed", _missed),
+		              self());
 	}).build();
 }
 
@@ -248,7 +248,7 @@ int DWM1000_Anchor::sendRespMsg() {
 	poll_rx_ts = get_rx_timestamp_u64(); /* Retrieve poll reception timestamp. */
 	/* Set send time for response. See NOTE 8 below. */
 	resp_tx_time = (poll_rx_ts + (POLL_RX_TO_RESP_TX_DLY_UUS * UUS_TO_DWT_TIME))
-			>> 8;
+	               >> 8;
 	dwt_setdelayedtrxtime(resp_tx_time);
 	dwt_setrxaftertxdelay(RESP_TX_TO_FINAL_RX_DLY_UUS);
 	dwt_setrxtimeout(FINAL_RX_TIMEOUT_UUS);
@@ -307,7 +307,7 @@ FrameType DWM1000_Anchor::readMsg(const dwt_callback_data_t* signal) {
 		if (ft == FT_BLINK) {
 			memcpy(_blinkMsg.buffer, _dwmMsg.buffer, sizeof(_blinkMsg));
 			DEBUG_ISR(" blink %d : %d : %s", _blinkMsg.getSrc(), _blinkMsg
-					.sequence, Label::label(_state));
+			          .sequence, Label::label(_state));
 			_blinks++;
 		} else if (ft == FT_POLL) {
 			memcpy(_pollMsg.buffer, _dwmMsg.buffer, sizeof(_pollMsg));
@@ -316,21 +316,21 @@ FrameType DWM1000_Anchor::readMsg(const dwt_callback_data_t* signal) {
 		} else if (ft == FT_RESP) {
 			memcpy(_respMsg.buffer, _dwmMsg.buffer, sizeof(_respMsg));
 			DEBUG_ISR(" resp %d : %d : %s ", _respMsg.getSrc(), _respMsg
-					.sequence, Label::label(_state));
+			          .sequence, Label::label(_state));
 			_resps++;
 		} else if (ft == FT_FINAL) {
 			memcpy(_finalMsg.buffer, _dwmMsg.buffer, sizeof(_finalMsg));
 			DEBUG_ISR(" final %d : %d : %s", _finalMsg.getSrc(), _finalMsg
-					.sequence, Label::label(_state));
+			          .sequence, Label::label(_state));
 			_finals++;
 		} else {
 			WARN_ISR("WARN unknown frame type %X:%X : %s", _dwmMsg.fc[0], _dwmMsg
-					.fc[1], Label::label(_state));
+			         .fc[1], Label::label(_state));
 		}
 		return ft;
 	} else {
 		WARN_ISR("WARN invalid length %d : hdr %X:%X : %s", frameLength, _dwmMsg
-				.fc[0], _dwmMsg.fc[1], Label::label(_state));
+		         .fc[0], _dwmMsg.fc[1], Label::label(_state));
 		return FT_UNKNOWN;
 	}
 }

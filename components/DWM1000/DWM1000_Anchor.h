@@ -52,7 +52,7 @@ class DWM1000_Anchor: public Actor, public DWM1000 {
 		uint32_t _interrupts;
 
 		DWM1000_Anchor(ActorRef& publisher,Spi& spi, DigitalIn& irq, DigitalOut& reset,
-				uint16_t shortAddress, uint8_t longAddress[6]);
+		               uint16_t shortAddress, uint8_t longAddress[6]);
 		~DWM1000_Anchor();
 		void mode(uint32_t m);
 		void init();

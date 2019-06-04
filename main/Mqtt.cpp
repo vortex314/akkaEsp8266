@@ -65,7 +65,7 @@ Receive& Mqtt::createReceive() {
 	.match(Mqtt::Publish, [this](Msg& msg) {
 		std::string topic;
 		std::string message;
-		if ( msg.get("topic",topic)==0 && msg.get("message",message)==0 ) {
+		while ( msg.getNext("topic",topic)==0 && msg.getNext("message",message)==0 ) {
 			mqttPublish(topic,message);
 		}
 	})
@@ -138,7 +138,7 @@ void Mqtt::topic_received_cb(mqtt_message_data_t* md) {
 void Mqtt::mqttPublish(std::string& topic, std::string& msg) {
 	if (_mqttConnected) {
 		uint64_t start=Sys::millis();
-		DEBUG(" MQTT TXD : %s = %s", topic.c_str(), msg.c_str());
+		INFO(" MQTT TXD : %s = %s", topic.c_str(), msg.c_str());
 		mqtt_message_t message;
 		message.payload = (void*) msg.data();
 		message.payloadlen = msg.size();
