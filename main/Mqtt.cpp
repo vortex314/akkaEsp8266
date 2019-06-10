@@ -163,7 +163,7 @@ void Mqtt::mqttPublish(std::string& topic, std::string& msg) {
 }
 
 void Mqtt::mqttSubscribe(const char* topic) {
-	INFO("Subscribing to topic %s ", topic);
+	INFO("mqqt subscribe topic %s ", topic);
 	mqtt_subscribe(&_client, topic, MQTT_QOS1, topic_received_cb);
 }
 
@@ -202,10 +202,10 @@ bool Mqtt::mqttConnect() {
 		mqtt_network_disconnect(&_network);
 		return false;
 	};
+	INFO("mqtt connected.");
 	mqttSubscribe(_topicsForDevice.c_str());
 	eb.publish(Msg(Mqtt::Connected).src(self().id()));
 	_mqttConnected = true;
-	INFO("mqtt connect success.");
 	return true;
 }
 
